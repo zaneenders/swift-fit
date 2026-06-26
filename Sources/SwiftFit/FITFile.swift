@@ -1,5 +1,3 @@
-import Foundation
-
 /// Errors that can occur when parsing a FIT file.
 public enum FITError: Error, Equatable {
     case invalidHeaderSignature
@@ -23,8 +21,8 @@ public struct FITFile: Sendable {
     /// - Parameter validateCRC: When `true`, throw `.crcMismatch` if the
     ///   trailing CRC does not verify. Defaults to `false` so that files with
     ///   non-standard CRCs but valid structure can still be read.
-    public init(data: Data, validateCRC: Bool = false) throws {
-        var decoder = FITDecoder(data: data)
+    public init(bytes: [UInt8], validateCRC: Bool = false) throws(FITError) {
+        var decoder = FITDecoder(bytes: bytes)
         try decoder.readFileHeader()
         self.header = decoder.header
         self.messages = try decoder.readMessages()
@@ -37,6 +35,17 @@ public struct FITFile: Sendable {
         }
     }
 }
+
+#if canImport(Foundation)
+import Foundation
+
+extension FITFile {
+    /// Decode a FIT file from `Data` when Foundation is available.
+    public init(data: Data, validateCRC: Bool = false) throws(FITError) {
+        try self.init(bytes: Array(data), validateCRC: validateCRC)
+    }
+}
+#endif
 
 /// FIT file header (12 or 14 bytes).
 public struct Header: Sendable {

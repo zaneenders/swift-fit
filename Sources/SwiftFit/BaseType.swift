@@ -1,5 +1,3 @@
-import Foundation
-
 /// FIT base types as defined by the FIT protocol.
 public enum BaseType: UInt8, Sendable {
     case enumType  = 0x00

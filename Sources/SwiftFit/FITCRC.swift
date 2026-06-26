@@ -1,5 +1,3 @@
-import Foundation
-
 /// FIT CRC-16 implementation. Uses polynomial 0x1021 (CCITT), seed 0,
 /// bit order MSB-first (matching the Garmin FIT SDK reference).
 enum FITCRC {
@@ -27,10 +25,5 @@ enum FITCRC {
             crc = (crc << 8) ^ table[idx]
         }
         return crc
-    }
-
-    /// Convenience overload accepting `Data`.
-    static func compute(_ data: Data) -> UInt16 {
-        compute(data.lazy.map { $0 })
     }
 }

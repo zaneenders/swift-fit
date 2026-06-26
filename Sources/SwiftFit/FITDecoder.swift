@@ -1,9 +1,7 @@
-import Foundation
-
 /// Internal decoder for FIT data. Reads the header, definitions, data messages,
-/// and trailing CRC from a `Data` buffer.
+/// and trailing CRC from a byte buffer.
 struct FITDecoder: @unchecked Sendable {
-    let data: Data
+    let bytes: [UInt8]
     var cursor: Int = 0
 
     var header: Header = .init(headerSize: 0, protocolVersion: 0,
@@ -18,50 +16,50 @@ struct FITDecoder: @unchecked Sendable {
     /// Last timestamp message (for compressed timestamp headers). Not yet used.
     var lastTimeOffset: UInt32 = 0
 
-    init(data: Data) {
-        self.data = data
+    init(bytes: [UInt8]) {
+        self.bytes = bytes
     }
 
     // MARK: - Byte access
 
-    private mutating func readUInt8() throws -> UInt8 {
-        guard cursor < data.count else { throw FITError.truncated }
-        let b = data[cursor]; cursor += 1; return b
+    private mutating func readUInt8() throws(FITError) -> UInt8 {
+        guard cursor < bytes.count else { throw FITError.truncated }
+        let b = bytes[cursor]; cursor += 1; return b
     }
 
-    private mutating func readBytes(_ count: Int) throws -> Data {
-        guard cursor + count <= data.count else { throw FITError.truncated }
-        let d = data.subdata(in: cursor..<(cursor + count))
+    private mutating func readBytes(_ count: Int) throws(FITError) -> [UInt8] {
+        guard cursor + count <= bytes.count else { throw FITError.truncated }
+        let slice = Array(bytes[cursor..<(cursor + count)])
         cursor += count
-        return d
+        return slice
     }
 
-    private mutating func readIntLE<T: FixedWidthInteger>(_ type: T.Type) throws -> T {
+    private mutating func readIntLE<T: FixedWidthInteger>(_ type: T.Type) throws(FITError) -> T {
         let n = MemoryLayout<T>.size
-        let bytes = try readBytes(n)
-        return bytes.withUnsafeBytes { $0.loadUnaligned(as: T.self) }
+        let payload = try readBytes(n)
+        return payload.withUnsafeBytes { $0.loadUnaligned(as: T.self) }
     }
 
-    private mutating func readIntBE<T: FixedWidthInteger>(_ type: T.Type) throws -> T {
+    private mutating func readIntBE<T: FixedWidthInteger>(_ type: T.Type) throws(FITError) -> T {
         let n = MemoryLayout<T>.size
-        let bytes = try readBytes(n)
+        let payload = try readBytes(n)
         var value: T = 0
-        for byte in bytes { value = (value << 8) | T(byte) }
+        for byte in payload { value = (value << 8) | T(byte) }
         return value
     }
 
-    private mutating func readU16(_ bigEndian: Bool) throws -> UInt16 {
+    private mutating func readU16(_ bigEndian: Bool) throws(FITError) -> UInt16 {
         bigEndian ? try readIntBE(UInt16.self) : try readIntLE(UInt16.self)
     }
-    private mutating func readU32(_ bigEndian: Bool) throws -> UInt32 {
+    private mutating func readU32(_ bigEndian: Bool) throws(FITError) -> UInt32 {
         bigEndian ? try readIntBE(UInt32.self) : try readIntLE(UInt32.self)
     }
 
     // MARK: - Header
 
-    mutating func readFileHeader() throws {
-        guard data.count >= 12 else { throw FITError.truncated }
-        let headerSize = data[0]
+    mutating func readFileHeader() throws(FITError) {
+        guard bytes.count >= 12 else { throw FITError.truncated }
+        let headerSize = bytes[0]
         guard headerSize == 12 || headerSize == 14 else { throw FITError.truncated }
         cursor = 0
         let size = try readUInt8()
@@ -84,10 +82,10 @@ struct FITDecoder: @unchecked Sendable {
 
     // MARK: - Messages
 
-    mutating func readMessages() throws -> [Message] {
+    mutating func readMessages() throws(FITError) -> [Message] {
         var messages: [Message] = []
         let end = cursor + Int(header.dataSize)
-        guard end <= data.count else { throw FITError.truncated }
+        guard end <= bytes.count else { throw FITError.truncated }
         while cursor < end {
             let recordHeader = try readUInt8()
             let isCompressed = (recordHeader & 0x80) != 0
@@ -127,7 +125,7 @@ struct FITDecoder: @unchecked Sendable {
     // MARK: Definition
 
     private mutating func readDefinitionMessage(localMesgType: UInt8,
-                                                hasDevData: Bool) throws {
+                                                hasDevData: Bool) throws(FITError) {
         // Reserved byte
         _ = try readUInt8()
         let architecture = try readUInt8()
@@ -169,7 +167,7 @@ struct FITDecoder: @unchecked Sendable {
 
     // MARK: Data
 
-    private mutating func readDataMessage(_ def: DefinitionMessage) throws -> Message {
+    private mutating func readDataMessage(_ def: DefinitionMessage) throws(FITError) -> Message {
         var fields: [Field] = []
         for fd in def.fields {
             let payload = try readBytes(Int(fd.size))
@@ -194,15 +192,13 @@ struct FITDecoder: @unchecked Sendable {
 
     // Decode the bytes for a field into an array of `Value`s. Fields may
     // contain arrays (size is a multiple of the base type's element size).
-    private func decodeField(_ payload: Data, baseType: BaseType,
+    private func decodeField(_ payload: [UInt8], baseType: BaseType,
                              bigEndian: Bool) -> [Value] {
         guard payload.count > 0, baseType != .invalid else { return [.invalid] }
         let elemSize = baseType.size
         guard elemSize > 0 else { return [.invalid] }
         if baseType == .string {
-            // NUL-terminated, multiple strings separated by NUL.
-            let raw = String(data: payload, encoding: .utf8) ?? String(decoding: payload, as: UTF8.self)
-            return [.string(raw.replacingOccurrences(of: "\u{0}", with: ""))]
+            return [.string(decodeFITString(payload))]
         }
 
         let count = payload.count / elemSize
@@ -229,11 +225,6 @@ struct FITDecoder: @unchecked Sendable {
         func loadF64(_ at: Int) -> Double {
             Double(bitPattern: loadU64(at))
         }
-
-        func u8Invalid(_ v: UInt8) -> Bool { return v == UInt8(truncatingIfNeeded: baseType.invalidValue) }
-        func u16Invalid(_ v: UInt16) -> Bool { return v == UInt16(truncatingIfNeeded: baseType.invalidValue) }
-        func u32Invalid(_ v: UInt32) -> Bool { return v == UInt32(truncatingIfNeeded: baseType.invalidValue) }
-        func u64Invalid(_ v: UInt64) -> Bool { return v == baseType.invalidValue }
 
         var result: [Value] = []
         for i in 0..<count {
@@ -276,15 +267,27 @@ struct FITDecoder: @unchecked Sendable {
         return result
     }
 
+    private func decodeFITString(_ payload: [UInt8]) -> String {
+        var end = payload.count
+        while end > 0, payload[end - 1] == 0 { end -= 1 }
+        guard end > 0 else { return "" }
+        var cleaned: [UInt8] = []
+        cleaned.reserveCapacity(end)
+        for byte in payload[..<end] where byte != 0 {
+            cleaned.append(byte)
+        }
+        return String(decoding: cleaned, as: UTF8.self)
+    }
+
     // MARK: - CRC
 
-    mutating func readFileCRC() throws {
+    mutating func readFileCRC() throws(FITError) {
         // Two trailing bytes: CRC of everything before them (header + data).
         let crcStart = Int(header.headerSize) + Int(header.dataSize)
-        guard crcStart + 2 <= data.count else { throw FITError.truncated }
+        guard crcStart + 2 <= bytes.count else { throw FITError.truncated }
         cursor = crcStart
         fileCRC = try readU16(false)
-        fileCRCComputed = FITCRC.compute(data[0..<crcStart])
+        fileCRCComputed = FITCRC.compute(bytes[0..<crcStart])
         fileCRCValid = (fileCRCComputed == fileCRC)
         // Mismatch is not fatal: some producers (e.g. Apple Watch) write
         // non-standard CRCs while the message structure is otherwise valid.
