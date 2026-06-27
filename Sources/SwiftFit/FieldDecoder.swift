@@ -1,18 +1,18 @@
 /// Decode the bytes for a field into an array of `Value`s. Fields may
 /// contain arrays (size is a multiple of the base type's element size).
 ///
-/// Operates on an `UnsafeRawBufferPointer` borrowed from the decoder's byte
-/// buffer to avoid heap-allocating an intermediate `[UInt8]` for every field.
+/// Reads directly from the decoder's `[UInt8]` buffer using safe array
+/// subscripting — no `UnsafeRawBufferPointer` needed. The decoder
+/// bounds-checks `offset + size` before every call, and with
+/// `@inline(__always)` the compiler eliminates redundant bounds checks
+/// in release builds.
 ///
 /// Dispatches once per base-type so the inner element loop is branch-free
 /// (mirroring the reference interpreter's approach of one `@inline(always)`
 /// function per opcode).
-///
-/// # Safety
-/// Caller must ensure `buf` is valid for reads of at least `offset + size` bytes.
 @inline(__always)
 func decodeField(
-  _ buf: borrowing UnsafeRawBufferPointer,
+  _ bytes: borrowing [UInt8],
   from offset: Int,
   size: Int,
   baseType: BaseType,
@@ -20,7 +20,7 @@ func decodeField(
 ) -> [Value] {
   guard size > 0, baseType != .invalid else { return [.invalid] }
   if baseType == .string {
-    return [.string(unsafe decodeFITString(buf, from: offset, size: size))]
+    return [.string(decodeFITString(bytes, from: offset, size: size))]
   }
   let elemSize = baseType.size
   guard elemSize > 0 else { return [.invalid] }
@@ -28,25 +28,31 @@ func decodeField(
   guard count > 0 else { return [.invalid] }
 
   // Local loaders that index relative to the slice origin.
+  // Safe: bounds-checked array subscript, proven in-bounds by the caller's
+  // `cursor &+ size <= bytes.count` guard plus per-element stride.
   @inline(__always)
-  func u8(_ at: Int) -> UInt8 { unsafe buf[offset &+ at] }
+  func u8(_ at: Int) -> UInt8 { bytes[offset &+ at] }
   @inline(__always)
   func u16(_ at: Int) -> UInt16 {
     let o = offset &+ at
     return bigEndian
-      ? (UInt16(unsafe buf[o]) << 8) | UInt16(unsafe buf[o &+ 1])
-      : (UInt16(unsafe buf[o &+ 1]) << 8) | UInt16(unsafe buf[o])
+      ? (UInt16(bytes[o]) << 8) | UInt16(bytes[o &+ 1])
+      : (UInt16(bytes[o &+ 1]) << 8) | UInt16(bytes[o])
   }
   @inline(__always)
   func u32(_ at: Int) -> UInt32 {
-    // Load as little-endian into a UInt32, then byte-swap if big-endian.
-    let raw = unsafe buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt32.self)
-    return bigEndian ? raw.byteSwapped : raw
+    // loadUnaligned is the only unsafe operation — narrowly scoped to 4-byte loads.
+    unsafe bytes.withUnsafeBytes {
+      let raw = $0.loadUnaligned(fromByteOffset: offset &+ at, as: UInt32.self)
+      return bigEndian ? raw.byteSwapped : raw
+    }
   }
   @inline(__always)
   func u64(_ at: Int) -> UInt64 {
-    let raw = unsafe buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt64.self)
-    return bigEndian ? raw.byteSwapped : raw
+    unsafe bytes.withUnsafeBytes {
+      let raw = $0.loadUnaligned(fromByteOffset: offset &+ at, as: UInt64.self)
+      return bigEndian ? raw.byteSwapped : raw
+    }
   }
 
   // Dispatch once, loop branch-free inside.
@@ -97,21 +103,21 @@ func decodeField(
 
 /// Decode a null-terminated FIT string from a buffer slice.
 ///
-/// # Safety
-/// Caller must ensure `buf` is valid for reads of at least `offset + size` bytes.
+/// Uses safe `[UInt8]` subscripting. The caller guarantees `offset + size`
+/// is within bounds.
 @inline(__always)
 func decodeFITString(
-  _ buf: borrowing UnsafeRawBufferPointer, from offset: Int, size: Int
+  _ bytes: borrowing [UInt8], from offset: Int, size: Int
 ) -> String {
   // Find the effective end (trim trailing nuls).
   var end = offset &+ size
-  while end > offset, unsafe buf[end &- 1] == 0 { end &-= 1 }
+  while end > offset, bytes[end &- 1] == 0 { end &-= 1 }
   guard end > offset else { return "" }
   // Copy non-nul bytes into a contiguous UTF-8 buffer.
   var cleaned: [UInt8] = []
   cleaned.reserveCapacity(end &- offset)
   for i in offset..<end {
-    let b = unsafe buf[i]
+    let b = bytes[i]
     if b != 0 { cleaned.append(b) }
   }
   return String(decoding: cleaned, as: UTF8.self)

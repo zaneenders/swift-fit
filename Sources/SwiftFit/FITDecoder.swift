@@ -62,15 +62,12 @@ struct FITDecoder: ~Copyable {
   ) throws(FITError) -> T {
     let n = MemoryLayout<T>.size
     guard cursor &+ n <= bytes.count else { throw FITError.truncated }
-    let value = unsafe bytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> T in
-      var v: T = 0
-      for i in cursor..<(cursor &+ n) {
-        v = (v << 8) | T(unsafe buf[i])
-      }
-      return v
+    var v: T = 0
+    for i in cursor..<(cursor &+ n) {
+      v = (v << 8) | T(bytes[i])
     }
     cursor &+= n
-    return value
+    return v
   }
 
   @inline(__always)
@@ -214,11 +211,9 @@ struct FITDecoder: ~Copyable {
     for fd in def.fields {
       let size = Int(fd.size)
       guard cursor &+ size <= bytes.count else { throw FITError.truncated }
-      let values = unsafe bytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> [Value] in
-        unsafe decodeField(
-          buf, from: cursor, size: size,
-          baseType: fd.baseType, bigEndian: bigEndian)
-      }
+      let values = decodeField(
+        bytes, from: cursor, size: size,
+        baseType: fd.baseType, bigEndian: bigEndian)
       cursor &+= size
       fields.append(
         Field(
@@ -231,11 +226,9 @@ struct FITDecoder: ~Copyable {
     for fd in def.devFields {
       let size = Int(fd.size)
       guard cursor &+ size <= bytes.count else { throw FITError.truncated }
-      let values = unsafe bytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> [Value] in
-        unsafe decodeField(
-          buf, from: cursor, size: size,
-          baseType: fd.baseType, bigEndian: bigEndian)
-      }
+      let values = decodeField(
+        bytes, from: cursor, size: size,
+        baseType: fd.baseType, bigEndian: bigEndian)
       cursor &+= size
       fields.append(
         Field(
