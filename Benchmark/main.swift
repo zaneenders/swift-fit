@@ -24,7 +24,7 @@ let preloaded: [(String, Data)] = fileNames.compactMap { name in
     }
     return (name, data)
 }
-let totalBytes = preloaded.reduce(0) { $0 + $1.data.count }
+let totalBytes = preloaded.reduce(0) { $0 + $1.1.count }
 
 print("=== SwiftFit Benchmark ===")
 print("Files:  \(preloaded.count)")
@@ -41,9 +41,9 @@ for round in 1...iterations {
     var errors   = 0
 
     let start = CFAbsoluteTimeGetCurrent()
-    for (_, data) in preloaded {
+    for (_, fileData) in preloaded {
         do {
-            messages += try FITFile(data: data).messages.count
+            messages += try FITFile(data: fileData).messages.count
         } catch {
             errors += 1
         }
