@@ -21,7 +21,7 @@ public struct FITFile: Sendable {
     /// - Parameter validateCRC: When `true`, throw `.crcMismatch` if the
     ///   trailing CRC does not verify. Defaults to `false` so that files with
     ///   non-standard CRCs but valid structure can still be read.
-    public init(bytes: [UInt8], validateCRC: Bool = false) throws(FITError) {
+    public init(bytes: consuming [UInt8], validateCRC: Bool = false) throws(FITError) {
         var decoder = FITDecoder(bytes: bytes)
         try decoder.readFileHeader()
         self.header = decoder.header

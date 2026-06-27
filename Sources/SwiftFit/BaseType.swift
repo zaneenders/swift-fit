@@ -19,6 +19,7 @@ public enum BaseType: UInt8, Sendable {
     case invalid   = 0xFF
 
     /// The size in bytes of a single element of this base type.
+    @inline(__always)
     public var size: Int {
         switch self {
         case .enumType, .sint8, .uint8, .string, .uint8z, .byte: return 1

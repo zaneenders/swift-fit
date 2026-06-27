@@ -9,7 +9,13 @@ let package = Package(
     targets: [
         .target(
             name: "SwiftFit",
-            path: "Sources/SwiftFit"
+            path: "Sources/SwiftFit",
+            swiftSettings: [
+                .enableExperimentalFeature("Extern"),
+                .enableExperimentalFeature("Lifetimes"),
+                .swiftLanguageMode(.v6),
+                .strictMemorySafety(),
+            ]
         ),
         .testTarget(
             name: "SwiftFitTests",
@@ -18,4 +24,3 @@ let package = Package(
         ),
     ]
 )
-
