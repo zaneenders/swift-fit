@@ -31,19 +31,19 @@ func decodeField(
     // Local loaders — unchecked, proven in-bounds by caller's guard.
     // No @inline needed: the outer function is @inline(__always), so these
     // are inlined automatically when the call site is monomorphised.
-    func u8(_ at: Int) -> UInt8 { buf[offset &+ at] }
+    func u8(_ at: Int) -> UInt8 { unsafe buf[offset &+ at] }
     func u16(_ at: Int) -> UInt16 {
       let o = offset &+ at
-      return bigEndian
+      return unsafe bigEndian
         ? (UInt16(buf[o]) << 8) | UInt16(buf[o &+ 1])
         : (UInt16(buf[o &+ 1]) << 8) | UInt16(buf[o])
     }
     func u32(_ at: Int) -> UInt32 {
-      let raw = buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt32.self)
+      let raw = unsafe buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt32.self)
       return bigEndian ? raw.byteSwapped : raw
     }
     func u64(_ at: Int) -> UInt64 {
-      let raw = buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt64.self)
+      let raw = unsafe buf.loadUnaligned(fromByteOffset: offset &+ at, as: UInt64.self)
       return bigEndian ? raw.byteSwapped : raw
     }
 
