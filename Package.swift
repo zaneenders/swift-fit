@@ -2,20 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwiftFit",
-    products: [
-        .library(name: "SwiftFit", targets: ["SwiftFit"])
-    ],
-    targets: [
-        .target(
-            name: "SwiftFit",
-            path: "Sources/SwiftFit"
-        ),
-        .testTarget(
-            name: "SwiftFitTests",
-            dependencies: ["SwiftFit"],
-            path: "Tests/SwiftFitTests"
-        ),
-    ]
+  name: "SwiftFit",
+  products: [
+    .library(name: "SwiftFit", targets: ["SwiftFit"])
+  ],
+  targets: [
+    .target(
+      name: "SwiftFit",
+      path: "Sources/SwiftFit"
+    ),
+    .testTarget(
+      name: "SwiftFitTests",
+      dependencies: ["SwiftFit"],
+      path: "Tests/SwiftFitTests"
+    ),
+  ]
 )
-
