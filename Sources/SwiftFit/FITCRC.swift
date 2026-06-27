@@ -27,3 +27,17 @@ enum FITCRC {
     return crc
   }
 }
+
+extension FITDecoder {
+  /// Read and verify the trailing file CRC (2 bytes after header + data).
+  mutating func readFileCRC() throws(FITError) {
+    let crcStart = Int(header.headerSize) &+ Int(header.dataSize)
+    guard crcStart &+ 2 <= bytes.count else { throw FITError.truncated }
+    cursor = crcStart
+    fileCRC = try _readU16(false)
+    fileCRCComputed = FITCRC.compute(bytes[0..<crcStart])
+    fileCRCValid = (fileCRCComputed == fileCRC)
+    // Mismatch is not fatal: some producers (e.g. Apple Watch) write
+    // non-standard CRCs while the message structure is otherwise valid.
+  }
+}
