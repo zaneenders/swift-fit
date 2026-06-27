@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
   name: "SwiftFit",
   products: [
-    .library(name: "SwiftFit", targets: ["SwiftFit"])
+    .library(name: "SwiftFit", targets: ["SwiftFit"]),
+    .executable(name: "SwiftFitBenchmark", targets: ["SwiftFitBenchmark"]),
   ],
   targets: [
     .target(
@@ -16,6 +17,11 @@ let package = Package(
         .swiftLanguageMode(.v6),
         .strictMemorySafety(),
       ]
+    ),
+    .executableTarget(
+      name: "SwiftFitBenchmark",
+      dependencies: ["SwiftFit"],
+      path: "Benchmark"
     ),
     .testTarget(
       name: "SwiftFitTests",
