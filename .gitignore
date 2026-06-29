@@ -1,2 +1,4 @@
 activities/
 .build
+
+.DS_Store
