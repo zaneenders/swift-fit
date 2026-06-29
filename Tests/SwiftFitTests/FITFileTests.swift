@@ -3,10 +3,7 @@ import Testing
 
 @testable import SwiftFit
 
-/// Convenience builder for minimal FIT files used in unit tests.
 enum FITFixture {
-  /// Build a FIT file containing a single `file_id` definition + data message
-  /// (global message number 0) with the given field bytes.
   static func build(
     globalMessageNumber: UInt16 = 0,
     fields: [(
@@ -16,9 +13,6 @@ enum FITFixture {
   ) -> Data {
     var buffer = Data()
 
-    // -- Definition record --
-    // Normal header (bit 7=0), mesg_type=1 definition (bit 6=1),
-    // dev=0 (bit 5), local mesg type 0.
     buffer.append(0b01000000)
     buffer.append(0x00)  // reserved
     buffer.append(0x00)  // architecture = little-endian
@@ -31,13 +25,9 @@ enum FITFixture {
       buffer.append(baseType)
     }
 
-    // -- Data record --
-    // Normal header (bit 7=0), mesg_type=0 data (bit 6=0),
-    // dev=0 (bit 5), local mesg type 0.
     buffer.append(0b00000000)
     for (_, _, _, bytes) in fields { buffer.append(bytes) }
 
-    // -- File header (built after we know the data size) --
     var header = Data()
     header.append(14)  // header size
     header.append(0x10)  // protocol version 1.0
@@ -57,12 +47,10 @@ enum FITFixture {
     header.append(UInt8(headerCRC & 0xFF))
     header.append(UInt8((headerCRC >> 8) & 0xFF))
 
-    // -- Assemble --
     var file = Data()
     file.append(header)
     file.append(buffer)
 
-    // -- File CRC (trailing 2 bytes, CRC of everything else) --
     let crc = FITCRC.compute(file)
     file.append(UInt8(crc & 0xFF))
     file.append(UInt8((crc >> 8) & 0xFF))
@@ -70,10 +58,8 @@ enum FITFixture {
   }
 }
 
-@Suite("FITFile parsing")
-struct FITFileTests {
-  @Test
-  func parseMinimalFile() throws {
+@Suite struct FITFileTests {
+  @Test func parseMinimalFile() throws {
     let serialBytes: [UInt8] = [0xDE, 0xAD, 0xBE, 0xEF]
     let data = FITFixture.build(
       fields: [
@@ -96,8 +82,7 @@ struct FITFileTests {
     #expect(v == 0xEFBE_ADDE)
   }
 
-  @Test
-  func parseStringField() throws {
+  @Test func parseStringField() throws {
     let data = FITFixture.build(fields: [
       (3, 6, BaseType.string.rawValue, Data("hello".utf8) + Data([0]))
     ])
@@ -110,8 +95,7 @@ struct FITFileTests {
     #expect(s == "hello")
   }
 
-  @Test
-  func invalidSignatureRejected() throws {
+  @Test func invalidSignatureRejected() throws {
     var bad = FITFixture.build(fields: [])
     bad[8] = 0x00  // corrupt ".FIT" (signature starts at byte 8)
     #expect(throws: FITError.invalidHeaderSignature) {
@@ -119,8 +103,7 @@ struct FITFileTests {
     }
   }
 
-  @Test
-  func crcMismatchNotFatalByDefault() throws {
+  @Test func crcMismatchNotFatalByDefault() throws {
     var bad = FITFixture.build(fields: [
       (0, 1, BaseType.uint8.rawValue, Data([0xFF]))
     ])
@@ -131,8 +114,7 @@ struct FITFileTests {
     #expect(fit.fileCRCValid == false)
   }
 
-  @Test
-  func crcMismatchRejectedWhenValidating() throws {
+  @Test func crcMismatchRejectedWhenValidating() throws {
     var bad = FITFixture.build(fields: [
       (0, 1, BaseType.uint8.rawValue, Data([0xFF]))
     ])
@@ -143,8 +125,7 @@ struct FITFileTests {
     }
   }
 
-  @Test
-  func crcValidFlaggedForGoodFile() throws {
+  @Test func crcValidFlaggedForGoodFile() throws {
     let data = FITFixture.build(fields: [
       (0, 1, BaseType.uint8.rawValue, Data([0x42]))
     ])

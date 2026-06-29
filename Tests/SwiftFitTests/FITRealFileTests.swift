@@ -3,12 +3,7 @@ import Testing
 
 @testable import SwiftFit
 
-/// Integration tests that parse real `.fit` files from the gitignored
-/// `activities/` directory. Automatically disabled if the directory is missing
-/// (e.g. on CI or a fresh checkout).
-@Suite("Real FIT files")
-struct FITRealFileTests {
-  /// Locates the `activities/` directory by walking up from the test bundle.
+@Suite struct FITRealFileTests {
   private static func activitiesDir() -> URL? {
     let here = URL(fileURLWithPath: #filePath)
     var url = here.deletingLastPathComponent()
@@ -22,7 +17,6 @@ struct FITRealFileTests {
     return nil
   }
 
-  /// All `.fit` files in `activities/`, sorted for determinism.
   private static var allFiles: [URL] {
     guard let dir = activitiesDir() else { return [] }
     guard
@@ -39,10 +33,7 @@ struct FITRealFileTests {
     Array(allFiles.prefix(n))
   }
 
-  @Test(
-    .disabled(
-      if: FITRealFileTests.allFiles.isEmpty,
-      "no .fit files found in activities/"))
+  @Test(.disabled(if: FITRealFileTests.allFiles.isEmpty))
   func parseRealActivities() throws {
     let samples = Self.sampleFiles(8)
     for url in samples {
@@ -58,10 +49,7 @@ struct FITRealFileTests {
     }
   }
 
-  @Test(
-    .disabled(
-      if: FITRealFileTests.allFiles.isEmpty,
-      "no .fit files found in activities/"))
+  @Test(.disabled(if: FITRealFileTests.allFiles.isEmpty))
   func messageCountsAreReasonable() throws {
     let url = Self.sampleFiles(1)[0]
     let fit = try FITFile(data: try Data(contentsOf: url))
@@ -71,13 +59,7 @@ struct FITRealFileTests {
     #expect(counts.count > 3, "expected multiple distinct mesg types")
   }
 
-  /// Parses every `.fit` file in `activities/`. Gated behind an environment
-  /// variable so the default `swift test` stays fast; run with:
-  ///   SWFITTFIT_FULL=1 swift test
-  @Test(
-    .disabled(
-      if: ProcessInfo.processInfo.environment["SWFITTFIT_FULL"] == nil,
-      "set SWFITTFIT_FULL=1 to parse all activities"))
+  @Test(.disabled(if: FITRealFileTests.allFiles.isEmpty))
   func parseAllActivities() throws {
     let files = Self.allFiles
     for url in files {

@@ -6,6 +6,7 @@ let package = Package(
   products: [
     .library(name: "SwiftFit", targets: ["SwiftFit"]),
     .executable(name: "SwiftFitBenchmark", targets: ["SwiftFitBenchmark"]),
+    .executable(name: "swift-fit-generate", targets: ["SwiftFitGenerate"]),
   ],
   targets: [
     .target(
@@ -22,6 +23,14 @@ let package = Package(
       name: "SwiftFitBenchmark",
       dependencies: ["SwiftFit"],
       path: "Benchmark"
+    ),
+    .executableTarget(
+      name: "SwiftFitGenerate",
+      dependencies: ["SwiftFit"],
+      path: "Sources/SwiftFitGenerate",
+      swiftSettings: [
+        .swiftLanguageMode(.v6),
+      ]
     ),
     .testTarget(
       name: "SwiftFitTests",
