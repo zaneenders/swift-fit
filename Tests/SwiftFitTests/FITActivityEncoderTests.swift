@@ -77,6 +77,61 @@ import Testing
     #expect(fit.fileCRCValid == true)
   }
 
+  @Test func encodesGPSRouteWithCumulativeDistance() throws {
+    let start = fitEpoch.addingTimeInterval(600)
+    let samples = [
+      FITActivitySample(
+        timestamp: start,
+        latitude: 40.7608,
+        longitude: -111.8910,
+        altitudeMeters: 1_300,
+        heartRateBpm: 120,
+        speedMps: 2.5
+      ),
+      FITActivitySample(
+        timestamp: start.addingTimeInterval(10),
+        latitude: 40.7610,
+        longitude: -111.8900,
+        altitudeMeters: 1_302,
+        heartRateBpm: 125,
+        speedMps: 2.6
+      ),
+      FITActivitySample(
+        timestamp: start.addingTimeInterval(20),
+        latitude: 40.7615,
+        longitude: -111.8890,
+        altitudeMeters: 1_304,
+        heartRateBpm: 130,
+        speedMps: 2.7
+      ),
+    ]
+
+    let bytes = FITActivityEncoder.encode(
+      FITActivityInput(
+        startDate: start,
+        endDate: start.addingTimeInterval(20),
+        sport: .running,
+        samples: samples,
+        totalDistanceMeters: 2646
+      ))
+
+    let fit = try FITFile(bytes: bytes)
+    let records = fit.messages.filter { $0.globalMessageNumber == FITGlobalMessage.record }
+    #expect(records.count == 3)
+
+    let firstLat = records[0].fields.first { $0.fieldDefinitionNumber == FITRecordField.positionLat }
+    if case .sint32(let raw)? = firstLat?.values.first {
+      let semicircleScale = 180.0 / 2_147_483_648.0
+      let lat = Double(raw) * semicircleScale
+      #expect(abs(lat - 40.7608) < 0.0001)
+    }
+
+    let lastDistance = records[2].fields.first { $0.fieldDefinitionNumber == FITRecordField.distance }
+    if case .uint32(let raw)? = lastDistance?.values.first {
+      #expect(abs(Double(raw) / 100.0 - 2646.0) < 1.0)
+    }
+  }
+
   @Test func roundTripHeartRateAndDistance() throws {
     let start = fitEpoch.addingTimeInterval(300)
     let samples = [

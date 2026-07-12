@@ -3,6 +3,9 @@ import Foundation
 
 public struct FITActivitySample: Sendable {
   public let timestamp: Date
+  public var latitude: Double?
+  public var longitude: Double?
+  public var altitudeMeters: Double?
   public var heartRateBpm: UInt8?
   public var distanceMeters: Double?
   public var speedMps: Double?
@@ -11,6 +14,9 @@ public struct FITActivitySample: Sendable {
 
   public init(
     timestamp: Date,
+    latitude: Double? = nil,
+    longitude: Double? = nil,
+    altitudeMeters: Double? = nil,
     heartRateBpm: UInt8? = nil,
     distanceMeters: Double? = nil,
     speedMps: Double? = nil,
@@ -18,6 +24,9 @@ public struct FITActivitySample: Sendable {
     powerWatts: UInt16? = nil
   ) {
     self.timestamp = timestamp
+    self.latitude = latitude
+    self.longitude = longitude
+    self.altitudeMeters = altitudeMeters
     self.heartRateBpm = heartRateBpm
     self.distanceMeters = distanceMeters
     self.speedMps = speedMps
@@ -55,6 +64,8 @@ public struct FITActivityInput: Sendable {
 }
 
 public enum FITActivityEncoder {
+  private static let semicirclesPerDegree = 2_147_483_648.0 / 180.0
+
   public static func encode(_ input: FITActivityInput) -> [UInt8] {
     var writer = FITWriter()
 
@@ -63,20 +74,28 @@ public enum FITActivityEncoder {
     let elapsed = max(0, Double(endTimestamp &- startTimestamp))
 
     let sortedSamples = input.samples.sorted { $0.timestamp < $1.timestamp }
-    let recordSamples = sortedSamples.isEmpty
-      ? [
-        FITActivitySample(timestamp: input.startDate),
-        FITActivitySample(timestamp: input.endDate),
-      ]
-      : sortedSamples
+    let recordSamples = preparedRecordSamples(
+      from: sortedSamples.isEmpty
+        ? [
+          FITActivitySample(timestamp: input.startDate),
+          FITActivitySample(timestamp: input.endDate),
+        ]
+        : sortedSamples,
+      totalDistanceMeters: input.totalDistanceMeters
+    )
 
     let heartRates = recordSamples.compactMap(\.heartRateBpm)
     let avgHeartRate = averageHeartRate(from: heartRates)
     let maxHeartRate = heartRates.max()
 
     let totalDistance = input.totalDistanceMeters
-      ?? recordSamples.compactMap(\.distanceMeters).last
+      ?? recordSamples.compactMap(\.distanceMeters).max()
       ?? 0
+
+    let hasGPS = recordSamples.contains {
+      guard let lat = $0.latitude, let lon = $0.longitude else { return false }
+      return lat.isFinite && lon.isFinite
+    }
 
     // file_id
     let fileIDLocal = writer.define(
@@ -114,18 +133,33 @@ public enum FITActivityEncoder {
         .enumType(FITEventType.start.rawValue),
       ])
 
-    // records (no GPS fields)
-    let recordLocal = writer.define(
-      globalMessageNumber: FITGlobalMessage.record,
-      fields: [
-        (FITRecordField.timestamp, 4, .uint32),
-        (FITRecordField.distance, 4, .uint32),
-        (FITRecordField.speed, 2, .uint16),
-        (FITRecordField.heartRateAlt, 1, .uint8),
-      ])
+    let recordLocal: UInt8
+    if hasGPS {
+      recordLocal = writer.define(
+        globalMessageNumber: FITGlobalMessage.record,
+        fields: [
+          (FITRecordField.timestamp, 4, .uint32),
+          (FITRecordField.positionLat, 4, .sint32),
+          (FITRecordField.positionLong, 4, .sint32),
+          (FITRecordField.altitude, 2, .uint16),
+          (FITRecordField.distance, 4, .uint32),
+          (FITRecordField.speed, 2, .uint16),
+          (FITRecordField.heartRateAlt, 1, .uint8),
+        ])
+    } else {
+      recordLocal = writer.define(
+        globalMessageNumber: FITGlobalMessage.record,
+        fields: [
+          (FITRecordField.timestamp, 4, .uint32),
+          (FITRecordField.distance, 4, .uint32),
+          (FITRecordField.speed, 2, .uint16),
+          (FITRecordField.heartRateAlt, 1, .uint8),
+        ])
+    }
 
     for sample in recordSamples {
       let timestamp = fitTimestamp(sample.timestamp)
+
       let distanceValue: Value
       if let meters = sample.distanceMeters {
         distanceValue = .uint32(UInt32(max(0, meters * 100).rounded()))
@@ -147,14 +181,45 @@ public enum FITActivityEncoder {
         heartRateValue = .invalid
       }
 
-      writer.write(
-        localType: recordLocal,
-        values: [
-          .uint32(timestamp),
-          distanceValue,
-          speedValue,
-          heartRateValue,
-        ])
+      if hasGPS {
+        let latValue: Value
+        let lonValue: Value
+        if let lat = sample.latitude, let lon = sample.longitude, lat.isFinite, lon.isFinite {
+          latValue = .sint32(degreesToSemicircles(lat))
+          lonValue = .sint32(degreesToSemicircles(lon))
+        } else {
+          latValue = .invalid
+          lonValue = .invalid
+        }
+
+        let altitudeValue: Value
+        if let altitude = sample.altitudeMeters {
+          altitudeValue = altitudeFieldValue(meters: altitude)
+        } else {
+          altitudeValue = .invalid
+        }
+
+        writer.write(
+          localType: recordLocal,
+          values: [
+            .uint32(timestamp),
+            latValue,
+            lonValue,
+            altitudeValue,
+            distanceValue,
+            speedValue,
+            heartRateValue,
+          ])
+      } else {
+        writer.write(
+          localType: recordLocal,
+          values: [
+            .uint32(timestamp),
+            distanceValue,
+            speedValue,
+            heartRateValue,
+          ])
+      }
     }
 
     // timer stop
@@ -264,8 +329,104 @@ public enum FITActivityEncoder {
     Data(encode(input))
   }
 
+  private static func preparedRecordSamples(
+    from samples: [FITActivitySample],
+    totalDistanceMeters: Double?
+  ) -> [FITActivitySample] {
+    guard !samples.isEmpty else { return samples }
+
+    var result = samples
+    let hasGPS = result.contains {
+      guard let lat = $0.latitude, let lon = $0.longitude else { return false }
+      return lat.isFinite && lon.isFinite
+    }
+
+    if hasGPS {
+      var cumulative: [Double] = []
+      cumulative.reserveCapacity(result.count)
+      var total = 0.0
+      var previousLatitude: Double?
+      var previousLongitude: Double?
+
+      for sample in result {
+        if let lat = sample.latitude,
+          let lon = sample.longitude,
+          let prevLat = previousLatitude,
+          let prevLon = previousLongitude
+        {
+          total += haversineMeters(
+            lat1: prevLat,
+            lon1: prevLon,
+            lat2: lat,
+            lon2: lon
+          )
+        }
+        cumulative.append(total)
+        previousLatitude = sample.latitude
+        previousLongitude = sample.longitude
+      }
+
+      let targetTotal = totalDistanceMeters ?? cumulative.last ?? 0
+      let computedTotal = cumulative.last ?? 0
+      let scale =
+        computedTotal > 0 && targetTotal > 0 ? targetTotal / computedTotal : 1.0
+
+      for index in result.indices {
+        let scaledDistance = cumulative[index] * scale
+        let existing = result[index].distanceMeters ?? 0
+        if existing < scaledDistance * 0.9 {
+          result[index].distanceMeters = scaledDistance
+        }
+      }
+      return result
+    }
+
+    guard let totalDistanceMeters, totalDistanceMeters > 0 else { return result }
+
+    let recordMax = result.compactMap(\.distanceMeters).max() ?? 0
+    guard recordMax < totalDistanceMeters * 0.9 else { return result }
+
+    let count = result.count
+    guard count > 1 else {
+      if result[0].distanceMeters == nil {
+        result[0].distanceMeters = totalDistanceMeters
+      }
+      return result
+    }
+
+    for index in result.indices {
+      result[index].distanceMeters =
+        totalDistanceMeters * Double(index) / Double(count - 1)
+    }
+    return result
+  }
+
   private static func fitTimestamp(_ date: Date) -> UInt32 {
     UInt32(date.timeIntervalSince1970) &- fitEpochOffset
+  }
+
+  private static func degreesToSemicircles(_ degrees: Double) -> Int32 {
+    Int32((degrees * semicirclesPerDegree).rounded())
+  }
+
+  private static func altitudeFieldValue(meters: Double) -> Value {
+    .uint16(UInt16(min(65_535, max(0, (meters + 500.0) * 5.0).rounded())))
+  }
+
+  private static func haversineMeters(
+    lat1: Double,
+    lon1: Double,
+    lat2: Double,
+    lon2: Double
+  ) -> Double {
+    let earthRadius = 6_371_000.0
+    let dLat = (lat2 - lat1) * .pi / 180.0
+    let dLon = (lon2 - lon1) * .pi / 180.0
+    let a =
+      sin(dLat / 2) * sin(dLat / 2)
+      + cos(lat1 * .pi / 180.0) * cos(lat2 * .pi / 180.0) * sin(dLon / 2) * sin(dLon / 2)
+    let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return earthRadius * c
   }
 
   private static func averageHeartRate(from values: [UInt8]) -> UInt8? {
