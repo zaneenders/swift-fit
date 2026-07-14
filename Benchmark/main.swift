@@ -56,11 +56,13 @@ for round in 1...iterations {
     worstMbps = min(worstMbps, mbps)
     totalElapsed += elapsed
 
-    print("  round \(round)/\(iterations):  \(String(format: "%7.1f", mbps)) MB/s   \(messages) msgs   \(errors) errs   \(String(format: "%.2f", elapsed))s")
+    print(
+      "  round \(round)/\(iterations):  \(unsafe String(format: "%7.1f", mbps)) MB/s   \(messages) msgs   \(errors) errs   \(unsafe String(format: "%.2f", elapsed))s"
+    )
 }
 
 let avgMbps = Double(totalBytes) / 1_000_000.0 / (totalElapsed / Double(iterations))
 print()
-print("  best:  \(String(format: "%.1f", bestMbps)) MB/s")
-print("  worst: \(String(format: "%.1f", worstMbps)) MB/s")
-print("  avg:   \(String(format: "%.1f", avgMbps)) MB/s")
+print("  best:  \(unsafe String(format: "%.1f", bestMbps)) MB/s")
+print("  worst: \(unsafe String(format: "%.1f", worstMbps)) MB/s")
+print("  avg:   \(unsafe String(format: "%.1f", avgMbps)) MB/s")

@@ -1,8 +1,18 @@
 // swift-tools-version: 6.3
 import PackageDescription
 
+let packageSettings: [SwiftSetting] = [
+  .swiftLanguageMode(.v6),
+  .strictMemorySafety(),
+  .treatAllWarnings(as: .error),
+  .treatWarning("StrictMemorySafety", as: .error),
+]
+
 let package = Package(
   name: "SwiftFit",
+  platforms: [
+    .macOS(.v13),
+  ],
   products: [
     .library(name: "SwiftFit", targets: ["SwiftFit"]),
     .library(name: "SwiftFitActivity", targets: ["SwiftFitActivity"]),
@@ -16,8 +26,6 @@ let package = Package(
       swiftSettings: [
         .enableExperimentalFeature("Extern"),
         .enableExperimentalFeature("Lifetimes"),
-        .swiftLanguageMode(.v6),
-        .strictMemorySafety(),
       ]
     ),
     .executableTarget(
@@ -28,18 +36,12 @@ let package = Package(
     .executableTarget(
       name: "SwiftFitGenerate",
       dependencies: ["SwiftFit"],
-      path: "Sources/SwiftFitGenerate",
-      swiftSettings: [
-        .swiftLanguageMode(.v6),
-      ]
+      path: "Sources/SwiftFitGenerate"
     ),
     .target(
       name: "SwiftFitActivity",
       dependencies: ["SwiftFit"],
-      path: "Sources/SwiftFitActivity",
-      swiftSettings: [
-        .swiftLanguageMode(.v6),
-      ]
+      path: "Sources/SwiftFitActivity"
     ),
     .testTarget(
       name: "SwiftFitTests",
@@ -56,3 +58,9 @@ let package = Package(
     ),
   ]
 )
+
+for target in package.targets {
+  var settings = target.swiftSettings ?? []
+  settings.append(contentsOf: packageSettings)
+  target.swiftSettings = settings
+}
