@@ -18,6 +18,18 @@ public enum FITRecordField {
   public static let distance: UInt8 = 5
   public static let speed: UInt8 = 6
   public static let heartRateAlt: UInt8 = 7
+  public static let enhancedSpeed: UInt8 = 73
+}
+
+/// Common FIT session message field numbers.
+public enum FITSessionField {
+  public static let timestamp: UInt8 = 253
+  public static let startTime: UInt8 = 2
+  public static let sport: UInt8 = 5
+  public static let subSport: UInt8 = 6
+  public static let totalElapsedTime: UInt8 = 7
+  public static let totalTimerTime: UInt8 = 8
+  public static let totalDistance: UInt8 = 9
 }
 
 /// Seconds between the FIT epoch (1989-12-31 00:00:00 UTC) and Unix epoch.

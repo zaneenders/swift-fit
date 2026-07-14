@@ -5,6 +5,7 @@ let package = Package(
   name: "SwiftFit",
   products: [
     .library(name: "SwiftFit", targets: ["SwiftFit"]),
+    .library(name: "SwiftFitActivity", targets: ["SwiftFitActivity"]),
     .executable(name: "SwiftFitBenchmark", targets: ["SwiftFitBenchmark"]),
     .executable(name: "swift-fit-generate", targets: ["SwiftFitGenerate"]),
   ],
@@ -32,10 +33,26 @@ let package = Package(
         .swiftLanguageMode(.v6),
       ]
     ),
+    .target(
+      name: "SwiftFitActivity",
+      dependencies: ["SwiftFit"],
+      path: "Sources/SwiftFitActivity",
+      swiftSettings: [
+        .swiftLanguageMode(.v6),
+      ]
+    ),
     .testTarget(
       name: "SwiftFitTests",
       dependencies: ["SwiftFit"],
       path: "Tests/SwiftFitTests"
+    ),
+    .testTarget(
+      name: "SwiftFitActivityTests",
+      dependencies: ["SwiftFitActivity", "SwiftFit"],
+      path: "Tests/SwiftFitActivityTests",
+      resources: [
+        .copy("Fixtures"),
+      ]
     ),
   ]
 )
