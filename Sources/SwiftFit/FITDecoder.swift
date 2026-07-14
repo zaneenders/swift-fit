@@ -8,24 +8,28 @@ struct FITDecoder: ~Copyable {
   /// The raw bytes. Stored as `[UInt8]` so Foundation-free callers can pass
   /// the buffer directly; the decoder borrows from it.
   let bytes: [UInt8]
+  let options: FITDecodeOptions
   var cursor: Int = 0
 
   var header: Header = .init(
     headerSize: 0, protocolVersion: 0,
     profileVersion: 0, dataSize: 0,
-    signature: 0, crc: nil)
+    signature: 0, storedCRC: nil)
   var fileCRC: UInt16 = 0
   var fileCRCComputed: UInt16 = 0
   var fileCRCValid: Bool = false
+  var headerCRCComputed: UInt16 = 0
+  var headerCRCValid: Bool = false
 
   /// Active definition messages keyed by local message type (0–15).
   var definitions: [UInt8: DefinitionMessage] = [:]
-  /// Last timestamp message (for compressed timestamp headers). Not yet used.
-  var lastTimeOffset: UInt32 = 0
+  /// Last full timestamp used to expand compressed timestamp headers.
+  var lastTimestamp: UInt32 = 0
 
   /// Create a decoder that takes ownership of `bytes`.
-  init(bytes: consuming [UInt8]) {
+  init(bytes: consuming [UInt8], options: FITDecodeOptions = FITDecodeOptions()) {
     self.bytes = bytes
+    self.options = options
   }
 
   // MARK: - Byte access (inlined, borrows from buffer to avoid copies)
@@ -96,13 +100,21 @@ struct FITDecoder: ~Copyable {
       throw FITError.invalidHeaderSignature
     }
 
-    var crc: UInt16? = nil
-    if size >= 14 { crc = try _readU16(false) }
+    var storedCRC: UInt16? = nil
+    if size >= 14 { storedCRC = try _readU16(false) }
     self.header = Header(
       headerSize: size, protocolVersion: proto,
       profileVersion: profile, dataSize: dataSize,
-      signature: signature, crc: crc)
+      signature: signature, storedCRC: storedCRC)
     _ = proto
+
+    if size >= 14 {
+      headerCRCComputed = FITCRC.compute(bytes[0..<12])
+      headerCRCValid = storedCRC == headerCRCComputed
+    } else {
+      headerCRCComputed = 0
+      headerCRCValid = false
+    }
   }
 
   // MARK: - Messages
@@ -116,16 +128,19 @@ struct FITDecoder: ~Copyable {
       let isCompressed = (recordHeader & 0x80) != 0
       if isCompressed {
         // Compressed timestamp header (bit 7 = 1).
-        //   bits 6–5:     local mesg type
+        //   bits 6–5:     local mesg type (0–3)
         //   bits 4–0:     time offset
         let localMesgType = (recordHeader >> 5) & 0x03
         guard let def = definitions[localMesgType] else {
           throw FITError.invalidRecordHeader(recordHeader)
         }
-        lastTimeOffset =
-          (lastTimeOffset & 0xFFFF_FFE0)
-          | UInt32(recordHeader & 0x1F)
-        messages.append(try readDataMessage(def))
+        let timeOffset = UInt32(recordHeader & 0x1F)
+        let compressedTimestamp = (lastTimestamp & 0xFFFF_FFE0) | timeOffset
+        let message = try readDataMessage(
+          def,
+          compressedTimestamp: compressedTimestamp)
+        lastTimestamp = compressedTimestamp
+        messages.append(message)
       } else {
         // Normal header (bit 7 = 0).
         //   bit 6:        mesg_type (1 = definition, 0 = data)
@@ -142,7 +157,9 @@ struct FITDecoder: ~Copyable {
           guard let def = definitions[localMesgType] else {
             throw FITError.invalidRecordHeader(recordHeader)
           }
-          messages.append(try readDataMessage(def))
+          let message = try readDataMessage(def)
+          updateLastTimestamp(from: message)
+          messages.append(message)
         }
       }
     }
@@ -170,7 +187,7 @@ struct FITDecoder: ~Copyable {
       let num = try _readU8Advance()
       let size = try _readU8Advance()
       let base = try _readU8Advance()
-      let baseType = BaseType(rawValue: base) ?? .invalid
+      let baseType = try resolveBaseType(base)
       fields.append(
         FieldDefinition(
           fieldDefinitionNumber: num,
@@ -183,7 +200,7 @@ struct FITDecoder: ~Copyable {
         let num = try _readU8Advance()
         let size = try _readU8Advance()
         let base = try _readU8Advance()
-        let baseType = BaseType(rawValue: base) ?? .invalid
+        let baseType = try resolveBaseType(base)
         devFields.append(
           FieldDefinition(
             fieldDefinitionNumber: num,
@@ -198,17 +215,44 @@ struct FITDecoder: ~Copyable {
     )
   }
 
+  private func resolveBaseType(_ rawValue: UInt8) throws(FITError) -> BaseType {
+    if let baseType = BaseType(rawValue: rawValue) {
+      return baseType
+    }
+    if options.strictDefinitions {
+      throw FITError.invalidBaseType(rawValue)
+    }
+    return .invalid
+  }
+
+  private mutating func updateLastTimestamp(from message: Message) {
+    guard
+      let field = message.fields.first(where: { $0.fieldDefinitionNumber == FITField.timestamp }),
+      case .uint32(let timestamp) = field.values.first
+    else { return }
+    lastTimestamp = timestamp
+  }
+
   // MARK: Data
 
   /// Read a data message. Field payloads are decoded by borrowing directly
   /// from the byte buffer — no intermediate `[UInt8]` copies on the hot path.
   mutating func readDataMessage(
-    _ def: DefinitionMessage
+    _ def: DefinitionMessage,
+    compressedTimestamp: UInt32? = nil
   ) throws(FITError) -> Message {
     let bigEndian = def.architecture == 1
     var fields: [Field] = []
     fields.reserveCapacity(def.fields.count &+ def.devFields.count)
     for fd in def.fields {
+      if fd.fieldDefinitionNumber == FITField.timestamp, let compressedTimestamp {
+        fields.append(
+          Field(
+            fieldDefinitionNumber: fd.fieldDefinitionNumber,
+            baseType: fd.baseType,
+            values: [.uint32(compressedTimestamp)]))
+        continue
+      }
       let size = Int(fd.size)
       guard cursor &+ size <= bytes.count else { throw FITError.truncated }
       let values = decodeField(

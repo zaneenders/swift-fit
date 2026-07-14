@@ -2,11 +2,14 @@ public struct FITWriter: Sendable {
   private var data: [UInt8] = []
   private var nextLocalType: UInt8 = 0
   private var definitions: [LocalTypeDef] = []
+  private var lastTimestamp: UInt32 = 0
 
   /// Profile version written into the header. Defaults to 8468 (21.20).
   public var profileVersion: UInt16 = 8468
   /// Protocol version written into the header. Defaults to 0x10 (1.0).
   public var protocolVersion: UInt8 = 0x10
+  /// When `true`, consecutive data messages may use compressed timestamp headers.
+  public var useCompressedTimestamps: Bool = true
 
   /// Create a new FIT writer.
   public init() {}
@@ -20,7 +23,8 @@ public struct FITWriter: Sendable {
     globalMessageNumber: UInt16,
     fields: [(number: UInt8, size: Int, baseType: BaseType)] = [],
     developerFields: [(number: UInt8, size: Int, baseType: BaseType)] = []
-  ) -> UInt8 {
+  ) throws(FITWriterError) -> UInt8 {
+    guard nextLocalType <= 15 else { throw FITWriterError.tooManyLocalTypes }
     let local = nextLocalType
     nextLocalType &+= 1
 
@@ -61,18 +65,35 @@ public struct FITWriter: Sendable {
   // MARK: - Data
 
   /// Write a data message for the given local message type.
-  public mutating func write(localType: UInt8, values: [Value]) {
+  public mutating func write(localType: UInt8, values: [Value]) throws(FITWriterError) {
     guard let def = definitions.first(where: { $0.local == localType }) else {
+      throw FITWriterError.unknownLocalType(localType)
+    }
+
+    if useCompressedTimestamps,
+      localType <= 3,
+      let timestampIndex = def.fields.firstIndex(where: { $0.number == FITField.timestamp }),
+      timestampIndex < values.count,
+      case .uint32(let timestamp) = values[timestampIndex],
+      lastTimestamp != 0,
+      (timestamp & 0xFFFF_FFE0) == (lastTimestamp & 0xFFFF_FFE0)
+    {
+      let offset = UInt8(timestamp & 0x1F)
+      let hdr: UInt8 = 0x80 | ((localType & 0x03) << 5) | offset
+      data.append(hdr)
+      writeFieldValues(def: def, values: values, skipTimestamp: true)
+      lastTimestamp = timestamp
       return
     }
 
     let hdr: UInt8 = (localType & 0x0F)
     data.append(hdr)
-
-    let allFields = def.fields + def.devFields
-    for (idx, field) in allFields.enumerated() {
-      let value = idx < values.count ? values[idx] : .invalid
-      encodeValue(value, size: field.size)
+    writeFieldValues(def: def, values: values, skipTimestamp: false)
+    if let timestampIndex = def.fields.firstIndex(where: { $0.number == FITField.timestamp }),
+      timestampIndex < values.count,
+      case .uint32(let timestamp) = values[timestampIndex]
+    {
+      lastTimestamp = timestamp
     }
   }
 
@@ -112,6 +133,28 @@ public struct FITWriter: Sendable {
 
   // MARK: - Internal helpers
 
+  private mutating func writeFieldValues(
+    def: LocalTypeDef,
+    values: [Value],
+    skipTimestamp: Bool
+  ) {
+    var valueIndex = 0
+    for field in def.fields {
+      if skipTimestamp, field.number == FITField.timestamp {
+        valueIndex &+= 1
+        continue
+      }
+      let value = valueIndex < values.count ? values[valueIndex] : .invalid
+      encodeValue(value, size: field.size)
+      valueIndex &+= 1
+    }
+    for field in def.devFields {
+      let value = valueIndex < values.count ? values[valueIndex] : .invalid
+      encodeValue(value, size: field.size)
+      valueIndex &+= 1
+    }
+  }
+
   private mutating func appendUInt16LE(_ value: UInt16) {
     data.append(UInt8(value & 0xFF))
     data.append(UInt8((value >> 8) & 0xFF))
@@ -145,6 +188,10 @@ public struct FITWriter: Sendable {
     case .uint8(let v): data.append(v)
     case .uint8z(let v): data.append(v)
     case .byte(let v): data.append(v)
+    case .bytes(let bytes):
+      for i in 0..<size {
+        data.append(i < bytes.count ? bytes[i] : 0xFF)
+      }
     case .sint8(let v): data.append(UInt8(bitPattern: v))
     case .uint16(let v): appendUInt16LE(v)
     case .uint16z(let v): appendUInt16LE(v)

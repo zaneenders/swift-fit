@@ -6,6 +6,29 @@ public enum FITGlobalMessage {
   public static let record: UInt16 = 20
   public static let event: UInt16 = 21
   public static let activity: UInt16 = 34
+  public static let developerDataDefinition: UInt16 = 206
+  public static let developerDataID: UInt16 = 207
+}
+
+/// Standard FIT field number for timestamps.
+public enum FITField {
+  public static let timestamp: UInt8 = 253
+}
+
+/// `developer_data_id` field numbers.
+public enum FITDeveloperDataIDField {
+  public static let developerDataIndex: UInt8 = 0
+  public static let developerId: UInt8 = 1
+  public static let applicationId: UInt8 = 3
+}
+
+/// `developer_data_definition` field numbers.
+public enum FITDeveloperDataDefinitionField {
+  public static let developerDataIndex: UInt8 = 0
+  public static let fieldDefinitionNumber: UInt8 = 1
+  public static let fitBaseTypeId: UInt8 = 2
+  public static let fieldName: UInt8 = 3
+  public static let units: UInt8 = 6
 }
 
 /// Common FIT record message field numbers.

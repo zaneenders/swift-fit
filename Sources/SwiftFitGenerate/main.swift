@@ -65,7 +65,7 @@ print("Building FIT file with SwiftFit...")
 var writer = FITWriter()
 
 // -- file_id (global message #0) --
-let fileIdLocal = writer.define(
+let fileIdLocal = try writer.define(
   globalMessageNumber: 0,
   fields: [
     (0, 1, .enumType),  // type
@@ -74,7 +74,7 @@ let fileIdLocal = writer.define(
     (3, 4, .uint32),  // serial_number
     (4, 4, .uint32),  // time_created
   ])
-writer.write(
+try writer.write(
   localType: fileIdLocal,
   values: [
     .enumType(4),  // type = activity
@@ -85,7 +85,7 @@ writer.write(
   ])
 
 // -- record (global message #20) --
-let recordLocal = writer.define(
+let recordLocal = try writer.define(
   globalMessageNumber: 20,
   fields: [
     (253, 4, .uint32),  // timestamp
@@ -112,7 +112,7 @@ for i in 0..<pointCount {
     + 0.5 * sin(Double(i) / Double(pointCount) * 12.0 * .pi)
   let speedMps = max(1.5, min(5.5, baseSpeed + speedVariation))
 
-  writer.write(
+  try writer.write(
     localType: recordLocal,
     values: [
       .uint32(ts),

@@ -51,8 +51,11 @@ public struct FITActivitySummary: Sendable {
 public enum FITActivityParser {
   private static let semicircleScale = 180.0 / 2_147_483_648.0
 
-  public static func parse(bytes: [UInt8]) throws(FITError) -> FITActivitySummary {
-    let fit = try FITFile(bytes: bytes)
+  public static func parse(
+    bytes: [UInt8],
+    options: FITDecodeOptions = FITDecodeOptions()
+  ) throws(FITError) -> FITActivitySummary {
+    let fit = try FITFile(bytes: bytes, options: options)
     var points: [FITTrackPoint] = []
     points.reserveCapacity(fit.messages.count / 4)
 

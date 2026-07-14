@@ -25,7 +25,7 @@ import Testing
     let startTimestamp = UInt32(fitEpoch.addingTimeInterval(60).timeIntervalSince1970) &- fitEpochOffset
 
     var writer = FITWriter()
-    let recordLocal = writer.define(
+    let recordLocal = try writer.define(
       globalMessageNumber: FITGlobalMessage.record,
       fields: [
         (FITRecordField.timestamp, 4, .uint32),
@@ -38,7 +38,7 @@ import Testing
       ])
 
     let semicirclesPerDegree = 2_147_483_648.0 / 180.0
-    writer.write(
+    try writer.write(
       localType: recordLocal,
       values: [
         .uint32(startTimestamp),
@@ -64,14 +64,14 @@ import Testing
 
   @Test func decodesSessionSportAndDistance() throws {
     var writer = FITWriter()
-    let sessionLocal = writer.define(
+    let sessionLocal = try writer.define(
       globalMessageNumber: FITGlobalMessage.session,
       fields: [
         (FITSessionField.sport, 1, .enumType),
         (FITSessionField.subSport, 1, .enumType),
         (FITSessionField.totalDistance, 4, .uint32),
       ])
-    writer.write(
+    try writer.write(
       localType: sessionLocal,
       values: [
         .enumType(FITSport.running.rawValue),

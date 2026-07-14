@@ -120,8 +120,31 @@ enum FITFixture {
     ])
     let last = bad.count - 1
     bad[last] = bad[last] ^ 0xFF  // flip the CRC
+    var options = FITDecodeOptions()
+    options.validateFileCRC = true
     #expect(throws: FITError.self) {
-      try FITFile(data: bad, validateCRC: true)
+      try FITFile(data: bad, options: options)
+    }
+  }
+
+  @Test func headerCRCValidFlaggedForGoodFile() throws {
+    let data = FITFixture.build(fields: [
+      (0, 1, BaseType.uint8.rawValue, Data([0x42]))
+    ])
+    let fit = try FITFile(data: data)
+    #expect(fit.headerCRCValid == true)
+  }
+
+  @Test func headerCRCMismatchRejectedWhenValidating() throws {
+    var bad = FITFixture.build(fields: [
+      (0, 1, BaseType.uint8.rawValue, Data([0x42]))
+    ])
+    let crcIndex = 12
+    bad[crcIndex] = bad[crcIndex] ^ 0xFF
+    var options = FITDecodeOptions()
+    options.validateHeaderCRC = true
+    #expect(throws: FITError.self) {
+      try FITFile(data: bad, options: options)
     }
   }
 

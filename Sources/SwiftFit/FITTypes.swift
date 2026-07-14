@@ -5,9 +5,29 @@ public struct Header: Sendable {
   public let profileVersion: UInt16
   public let dataSize: UInt32
   public let signature: UInt32
-  public let crc: UInt16?
+  public let storedCRC: UInt16?
 
-  public var isCRCValid: Bool { headerSize >= 14 }
+  /// CRC value stored in a 14-byte header, if present.
+  public var crc: UInt16? { storedCRC }
+
+  public init(
+    headerSize: UInt8,
+    protocolVersion: UInt8,
+    profileVersion: UInt16,
+    dataSize: UInt32,
+    signature: UInt32,
+    storedCRC: UInt16?
+  ) {
+    self.headerSize = headerSize
+    self.protocolVersion = protocolVersion
+    self.profileVersion = profileVersion
+    self.dataSize = dataSize
+    self.signature = signature
+    self.storedCRC = storedCRC
+  }
+
+  /// Whether the on-disk header includes a CRC field (14-byte header).
+  public var includesCRC: Bool { headerSize >= 14 }
 }
 
 /// A single FIT message: a definition plus its decoded values.
@@ -39,6 +59,7 @@ public enum Value: Sendable, Equatable {
   case uint16z(UInt16)
   case uint32z(UInt32)
   case byte(UInt8)
+  case bytes([UInt8])
   case sint64(Int64)
   case uint64(UInt64)
   case invalid
