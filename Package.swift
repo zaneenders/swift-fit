@@ -11,11 +11,12 @@ let packageSettings: [SwiftSetting] = [
 let package = Package(
   name: "SwiftFit",
   platforms: [
-    .macOS(.v13),
+    .macOS(.v13)
   ],
   products: [
     .library(name: "SwiftFit", targets: ["SwiftFit"]),
     .library(name: "SwiftFitActivity", targets: ["SwiftFitActivity"]),
+    .library(name: "SwiftFitActivityFixtures", targets: ["SwiftFitActivityFixtures"]),
     .executable(name: "SwiftFitBenchmark", targets: ["SwiftFitBenchmark"]),
     .executable(name: "swift-fit-generate", targets: ["SwiftFitGenerate"]),
   ],
@@ -36,25 +37,24 @@ let package = Package(
     .executableTarget(
       name: "SwiftFitGenerate",
       dependencies: ["SwiftFit"],
-      path: "Sources/SwiftFitGenerate"
     ),
     .target(
       name: "SwiftFitActivity",
-      dependencies: ["SwiftFit"],
-      path: "Sources/SwiftFitActivity"
+      dependencies: ["SwiftFit"]
+    ),
+    .target(
+      name: "SwiftFitActivityFixtures",
+      resources: [
+        .copy("sample.fit")
+      ]
     ),
     .testTarget(
       name: "SwiftFitTests",
       dependencies: ["SwiftFit"],
-      path: "Tests/SwiftFitTests"
     ),
     .testTarget(
       name: "SwiftFitActivityTests",
-      dependencies: ["SwiftFitActivity", "SwiftFit"],
-      path: "Tests/SwiftFitActivityTests",
-      resources: [
-        .copy("Fixtures"),
-      ]
+      dependencies: ["SwiftFitActivity", "SwiftFitActivityFixtures", "SwiftFit"],
     ),
   ]
 )

@@ -1,16 +1,12 @@
 import Foundation
 import SwiftFit
 import SwiftFitActivity
+import SwiftFitActivityFixtures
 import Testing
 
 @Suite struct FITActivityParserTests {
   @Test func parsesSampleActivityFile() throws {
-    let fixtureURL = Bundle.module.url(
-      forResource: "sample",
-      withExtension: "fit",
-      subdirectory: "Fixtures"
-    )!
-    let bytes = Array(try Data(contentsOf: fixtureURL))
+    let bytes = try FITActivityFixtures.sampleRideBytes()
     let summary = try FITActivityParser.parse(bytes: bytes)
 
     #expect(summary.points.count == 4_270)
