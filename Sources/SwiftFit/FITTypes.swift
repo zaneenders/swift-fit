@@ -62,5 +62,6 @@ public enum Value: Sendable, Equatable {
   case bytes([UInt8])
   case sint64(Int64)
   case uint64(UInt64)
+  case uint64z(UInt64)
   case invalid
 }

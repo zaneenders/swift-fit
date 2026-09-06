@@ -57,6 +57,7 @@ func decodeField(
       result.append(raw == 0xFFFF_FFFF_FFFF_FFFF ? .invalid : .float64(Double(bitPattern: raw)))
     case .sint64: result.append(.sint64(Int64(bitPattern: unsigned(at, byteCount: 8))))
     case .uint64: result.append(.uint64(unsigned(at, byteCount: 8)))
+    case .uint64z: result.append(.uint64z(unsigned(at, byteCount: 8)))
     case .string, .invalid: result.append(.invalid)
     }
   }

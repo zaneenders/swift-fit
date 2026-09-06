@@ -94,6 +94,14 @@ import Testing
     #expect(fit.messages[0].fields[0].values == [.uint64(18_446_744_073_709_551_615)])
   }
 
+  @Test func roundTripUInt64Z() throws {
+    var w = FITWriter()
+    try w.define(globalMessageNumber: 0, fields: [(0, 8, .uint64z)])
+    try w.write(localType: 0, values: [.uint64z(18_446_744_073_709_551_615)])
+    let fit = try FITFile(data: w.finishData())
+    #expect(fit.messages[0].fields[0].values == [.uint64z(18_446_744_073_709_551_615)])
+  }
+
   @Test func roundTripByte() throws {
     var w = FITWriter()
     try w.define(globalMessageNumber: 0, fields: [(0, 1, .byte)])

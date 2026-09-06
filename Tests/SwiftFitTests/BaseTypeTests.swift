@@ -20,6 +20,7 @@ import Testing
     (.float64, 8),
     (.sint64, 8),
     (.uint64, 8),
+    (.uint64z, 8),
     (.invalid, 0),
   ])
   func elementSizes(type: BaseType, expected: Int) {
@@ -37,6 +38,7 @@ import Testing
     (.uint32, 0xFFFF_FFFF),
     (.sint64, 0xFFFF_FFFF_FFFF_FFFF),
     (.uint64, 0xFFFF_FFFF_FFFF_FFFF),
+    (.uint64z, 0),
     (.uint8z, 0),
     (.uint16z, 0),
     (.uint32z, 0),
