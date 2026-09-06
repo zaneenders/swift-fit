@@ -76,6 +76,61 @@ import Testing
     #expect(fit.messages[1].uint8Field(number: 0) == 11)
   }
 
+  @Test func compressedTimestampRollsOverFiveBitBoundary() throws {
+    var writer = FITWriter()
+    writer.useCompressedTimestamps = true
+    let recordLocal = try writer.define(
+      globalMessageNumber: FITGlobalMessage.record,
+      fields: [
+        (0, 1, .uint8),
+        (FITField.timestamp, 4, .uint32),
+      ])
+
+    let beforeRollover: UInt32 = 1_000_031
+    try writer.write(localType: recordLocal, values: [.uint8(10), .uint32(beforeRollover)])
+    try writer.write(localType: recordLocal, values: [.uint8(11), .uint32(beforeRollover + 1)])
+    try writer.write(localType: recordLocal, values: [.uint8(12), .uint32(beforeRollover + 31)])
+
+    let fit = try FITFile(bytes: writer.finish())
+    #expect(fit.messages.map { $0.uint32Field(number: FITField.timestamp) } == [
+      beforeRollover, beforeRollover + 1, beforeRollover + 31,
+    ])
+  }
+
+  @Test func writerUsesNormalHeaderForThirtyTwoSecondDelta() throws {
+    var writer = FITWriter()
+    writer.useCompressedTimestamps = true
+    let recordLocal = try writer.define(
+      globalMessageNumber: FITGlobalMessage.record,
+      fields: [(0, 1, .uint8), (FITField.timestamp, 4, .uint32)])
+
+    let timestamp: UInt32 = 1_000_000
+    try writer.write(localType: recordLocal, values: [.uint8(1), .uint32(timestamp)])
+    try writer.write(localType: recordLocal, values: [.uint8(2), .uint32(timestamp + 32)])
+
+    let bytes = writer.finish()
+    #expect(bytes[32] == recordLocal)
+    let fit = try FITFile(bytes: bytes)
+    #expect(fit.messages[1].uint32Field(number: FITField.timestamp) == timestamp + 32)
+  }
+
+  @Test func writerUsesNormalHeaderForOutOfOrderTimestamp() throws {
+    var writer = FITWriter()
+    writer.useCompressedTimestamps = true
+    let recordLocal = try writer.define(
+      globalMessageNumber: FITGlobalMessage.record,
+      fields: [(0, 1, .uint8), (FITField.timestamp, 4, .uint32)])
+
+    let timestamp: UInt32 = 1_000_000
+    try writer.write(localType: recordLocal, values: [.uint8(1), .uint32(timestamp)])
+    try writer.write(localType: recordLocal, values: [.uint8(2), .uint32(timestamp - 1)])
+
+    let bytes = writer.finish()
+    #expect(bytes[32] == recordLocal)
+    let fit = try FITFile(bytes: bytes)
+    #expect(fit.messages[1].uint32Field(number: FITField.timestamp) == timestamp - 1)
+  }
+
   @Test func writerRejectsUnknownLocalType() throws {
     var writer = FITWriter()
     #expect(throws: FITWriterError.unknownLocalType(9)) {

@@ -59,6 +59,18 @@ swift test
 
 The package builds with strict Swift 6 language mode, strict memory safety, and warnings treated as errors.
 
+### WebAssembly
+
+CI cross-compiles both library targets with Embedded Swift for `wasm32-unknown-wasip1`, matching browser-oriented consumers such as SwiftWasm's JavaScriptKit. To run the same check locally, install the WebAssembly SDK matching your Swift toolchain and build the targets explicitly:
+
+```bash
+swift sdk install <matching-wasm-sdk-artifactbundle-url> --checksum <checksum>
+swift build -c release --swift-sdk <installed-wasm-sdk-id>-embedded --target SwiftFit
+swift build -c release --swift-sdk <installed-wasm-sdk-id>-embedded --target SwiftFitActivity
+```
+
+The host Swift compiler and WebAssembly SDK must have matching versions.
+
 ## Testing
 
 You can use the following commands to view current test coverage.

@@ -136,7 +136,10 @@ struct FITDecoder: ~Copyable {
           throw FITError.invalidRecordHeader(recordHeader)
         }
         let timeOffset = UInt32(recordHeader & 0x1F)
-        let compressedTimestamp = (lastTimestamp & 0xFFFF_FFE0) | timeOffset
+        var compressedTimestamp = (lastTimestamp & 0xFFFF_FFE0) | timeOffset
+        if timeOffset < (lastTimestamp & 0x1F) {
+          compressedTimestamp &+= 0x20
+        }
         let message = try readDataMessage(
           def,
           compressedTimestamp: compressedTimestamp)
