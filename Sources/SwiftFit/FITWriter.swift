@@ -214,6 +214,7 @@ public struct FITWriter: Sendable {
     case .float32(let v): appendUInt32LE(v.bitPattern)
     case .float64(let v): appendUInt64LE(v.bitPattern)
     case .uint64(let v): appendUInt64LE(v)
+    case .uint64z(let v): appendUInt64LE(v)
     case .sint64(let v): appendUInt64LE(UInt64(bitPattern: v))
     case .string(let s):
       var strData = [UInt8](s.utf8)

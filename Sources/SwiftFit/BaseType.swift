@@ -16,6 +16,7 @@ public enum BaseType: UInt8, Sendable {
   case byte = 0x0D
   case sint64 = 0x8E
   case uint64 = 0x8F
+  case uint64z = 0x90
   case invalid = 0xFF
 
   /// The size in bytes of a single element of this base type.
@@ -25,7 +26,7 @@ public enum BaseType: UInt8, Sendable {
     case .enumType, .sint8, .uint8, .string, .uint8z, .byte: return 1
     case .sint16, .uint16, .uint16z: return 2
     case .sint32, .uint32, .float32, .uint32z: return 4
-    case .float64, .sint64, .uint64: return 8
+    case .float64, .sint64, .uint64, .uint64z: return 8
     case .invalid: return 0
     }
   }
@@ -44,6 +45,7 @@ public enum BaseType: UInt8, Sendable {
     case .uint8z: return 0
     case .uint16z: return 0
     case .uint32z: return 0
+    case .uint64z: return 0
     case .string: return 0
     case .float32: return 0xFFFF_FFFF
     case .float64: return 0xFFFF_FFFF_FFFF_FFFF
