@@ -152,12 +152,12 @@ public struct FITWriter: Sendable {
         continue
       }
       let value = valueIndex < values.count ? values[valueIndex] : .invalid
-      encodeValue(value, size: field.size)
+      encodeValue(value, size: field.size, baseType: field.baseType)
       valueIndex &+= 1
     }
     for field in def.devFields {
       let value = valueIndex < values.count ? values[valueIndex] : .invalid
-      encodeValue(value, size: field.size)
+      encodeValue(value, size: field.size, baseType: field.baseType)
       valueIndex &+= 1
     }
   }
@@ -189,7 +189,7 @@ public struct FITWriter: Sendable {
     data.append(UInt8((value >> 56) & 0xFF))
   }
 
-  private mutating func encodeValue(_ value: Value, size: Int) {
+  private mutating func encodeValue(_ value: Value, size: Int, baseType: BaseType) {
     switch value {
     case .enumType(let v): data.append(v)
     case .uint8(let v): data.append(v)
@@ -216,7 +216,11 @@ public struct FITWriter: Sendable {
       while strData.count < size { strData.append(0) }
       data.append(contentsOf: strData.prefix(size))
     case .invalid:
-      for _ in 0..<size { data.append(0xFF) }
+      let elementSize = max(baseType.size, 1)
+      for index in 0..<size {
+        let shift = UInt64((index % elementSize) * 8)
+        data.append(UInt8(truncatingIfNeeded: baseType.invalidValue >> shift))
+      }
     }
   }
 }
