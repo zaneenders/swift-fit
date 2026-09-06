@@ -9,7 +9,9 @@ public struct FITWriter: Sendable {
   /// Protocol version written into the header. Defaults to 0x10 (1.0).
   public var protocolVersion: UInt8 = 0x10
   /// When `true`, consecutive data messages may use compressed timestamp headers.
-  public var useCompressedTimestamps: Bool = true
+  /// Disabled by default because definitions must use a compression-compatible
+  /// field layout; normal timestamp-bearing definitions are not interoperable.
+  public var useCompressedTimestamps: Bool = false
 
   /// Create a new FIT writer.
   public init() {}
@@ -73,10 +75,15 @@ public struct FITWriter: Sendable {
     if useCompressedTimestamps,
       localType <= 3,
       let timestampIndex = def.fields.firstIndex(where: { $0.number == FITField.timestamp }),
+      // FIT compressed timestamp records omit the timestamp bytes from the
+      // payload, so timestamp must be the final native field in the definition.
+      // Otherwise decoders consume the following fields at the wrong offsets.
+      timestampIndex == def.fields.count - 1,
       timestampIndex < values.count,
       case .uint32(let timestamp) = values[timestampIndex],
       lastTimestamp != 0,
-      (timestamp & 0xFFFF_FFE0) == (lastTimestamp & 0xFFFF_FFE0)
+      timestamp >= lastTimestamp,
+      timestamp - lastTimestamp < 32
     {
       let offset = UInt8(timestamp & 0x1F)
       let hdr: UInt8 = 0x80 | ((localType & 0x03) << 5) | offset

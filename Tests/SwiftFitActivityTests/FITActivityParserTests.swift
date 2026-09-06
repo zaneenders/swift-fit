@@ -30,7 +30,7 @@ import Testing
         (FITRecordField.altitude, 2, .uint16),
         (FITRecordField.distance, 4, .uint32),
         (FITRecordField.enhancedSpeed, 4, .uint32),
-        (FITRecordField.heartRateAlt, 1, .uint8),
+        (FITRecordField.heartRate, 1, .uint8),
       ])
 
     let semicirclesPerDegree = 2_147_483_648.0 / 180.0
@@ -56,6 +56,20 @@ import Testing
     #expect(abs((point.distanceMeters ?? 0) - 100.0) < 0.01)
     #expect(abs((point.speedMps ?? 0) - 5.0) < 0.01)
     #expect(point.heartRate == 140)
+  }
+
+  @Test func doesNotInterpretPowerAsHeartRate() throws {
+    var writer = FITWriter()
+    let recordLocal = try writer.define(
+      globalMessageNumber: FITGlobalMessage.record,
+      fields: [
+        (FITRecordField.timestamp, 4, .uint32),
+        (FITRecordField.power, 2, .uint16),
+      ])
+    try writer.write(localType: recordLocal, values: [.uint32(1_000), .uint16(250)])
+
+    let point = try #require(FITActivityParser.parse(bytes: writer.finish()).points.first)
+    #expect(point.heartRate == nil)
   }
 
   @Test func decodesSessionSportAndDistance() throws {

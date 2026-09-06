@@ -1,28 +1,24 @@
-/// FIT CRC-16 implementation. Uses polynomial 0x1021 (CCITT), seed 0,
-/// bit order MSB-first (matching the Garmin FIT SDK reference).
+/// Garmin FIT CRC-16 implementation. FIT uses the reflected 0xA001
+/// polynomial, an initial value of zero, and no final XOR.
 enum FITCRC {
-  static let table: [UInt16] = {
-    var t = [UInt16](repeating: 0, count: 256)
-    for i in 0..<256 {
-      var crc = UInt16(i) << 8
-      for _ in 0..<8 {
-        if (crc & 0x8000) != 0 {
-          crc = (crc << 1) ^ 0x1021
-        } else {
-          crc <<= 1
-        }
-      }
-      t[i] = crc
-    }
-    return t
-  }()
+  private static let nibbleTable: [UInt16] = [
+    0x0000, 0xCC01, 0xD801, 0x1400,
+    0xF001, 0x3C00, 0x2800, 0xE401,
+    0xA001, 0x6C00, 0x7800, 0xB401,
+    0x5000, 0x9C01, 0x8801, 0x4400,
+  ]
 
   /// Compute the FIT CRC-16 over the given bytes.
   static func compute(_ bytes: some Sequence<UInt8>) -> UInt16 {
     var crc: UInt16 = 0
     for byte in bytes {
-      let idx = Int((crc >> 8) ^ UInt16(byte)) & 0xFF
-      crc = (crc << 8) ^ table[idx]
+      var temporary = nibbleTable[Int(crc & 0x0F)]
+      crc = (crc >> 4) & 0x0FFF
+      crc ^= temporary ^ nibbleTable[Int(byte & 0x0F)]
+
+      temporary = nibbleTable[Int(crc & 0x0F)]
+      crc = (crc >> 4) & 0x0FFF
+      crc ^= temporary ^ nibbleTable[Int((byte >> 4) & 0x0F)]
     }
     return crc
   }

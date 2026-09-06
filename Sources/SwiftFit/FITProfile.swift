@@ -38,9 +38,10 @@ public enum FITRecordField {
   public static let positionLong: UInt8 = 1
   public static let altitude: UInt8 = 2
   public static let heartRate: UInt8 = 3
+  public static let cadence: UInt8 = 4
   public static let distance: UInt8 = 5
   public static let speed: UInt8 = 6
-  public static let heartRateAlt: UInt8 = 7
+  public static let power: UInt8 = 7
   public static let enhancedSpeed: UInt8 = 73
 }
 

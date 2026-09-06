@@ -106,9 +106,7 @@ public enum FITActivityParser {
       altitude = nil
     }
 
-    let heartRate =
-      message.uint8Field(number: FITRecordField.heartRate)
-      ?? message.uint8Field(number: FITRecordField.heartRateAlt)
+    let heartRate = message.uint8Field(number: FITRecordField.heartRate)
 
     let speedMps: Double?
     if let raw = message.uint32Field(number: FITRecordField.enhancedSpeed), raw != 0xFFFF_FFFF {

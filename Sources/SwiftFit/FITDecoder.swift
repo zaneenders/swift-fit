@@ -51,8 +51,9 @@ struct FITDecoder: ~Copyable {
   ) throws(FITError) -> T {
     let n = MemoryLayout<T>.size
     guard cursor &+ n <= bytes.count else { throw FITError.truncated }
-    let value = unsafe bytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) -> T in
-      unsafe buf.loadUnaligned(fromByteOffset: cursor, as: T.self)
+    var value: T = 0
+    for index in 0..<n {
+      value |= T(bytes[cursor &+ index]) << T(index &* 8)
     }
     cursor &+= n
     return value
