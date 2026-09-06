@@ -32,6 +32,23 @@ public struct FITWriter: Sendable {
       throw FITWriterError.developerDataRequiresProtocol2
     }
     guard nextLocalType <= 15 else { throw FITWriterError.tooManyLocalTypes }
+    guard fields.count <= 255 else { throw FITWriterError.tooManyFields(fields.count) }
+    guard developerFields.count <= 255 else {
+      throw FITWriterError.tooManyFields(developerFields.count)
+    }
+    for field in fields {
+      guard (1...255).contains(field.size) else {
+        throw FITWriterError.invalidFieldSize(field.size)
+      }
+      guard field.baseType == .string || field.baseType.size > 0,
+        field.baseType == .string || field.size.isMultiple(of: field.baseType.size)
+      else { throw FITWriterError.invalidFieldSize(field.size) }
+    }
+    for field in developerFields {
+      guard (1...255).contains(field.size) else {
+        throw FITWriterError.invalidFieldSize(field.size)
+      }
+    }
     let local = nextLocalType
     nextLocalType &+= 1
 
@@ -75,6 +92,15 @@ public struct FITWriter: Sendable {
   public mutating func write(localType: UInt8, values: [Value]) throws(FITWriterError) {
     guard let def = definitions.first(where: { $0.local == localType }) else {
       throw FITWriterError.unknownLocalType(localType)
+    }
+    let allFields = def.fields + def.devFields.map {
+      (number: $0.number, size: $0.size, baseType: $0.baseType)
+    }
+    guard values.count <= allFields.count else {
+      throw FITWriterError.tooManyValues(expected: allFields.count, actual: values.count)
+    }
+    for (value, field) in zip(values, allFields) {
+      try validate(value: value, for: field)
     }
 
     if useCompressedTimestamps,
@@ -144,6 +170,47 @@ public struct FITWriter: Sendable {
   }
 
   // MARK: - Internal helpers
+
+  private func validate(
+    value: Value,
+    for field: (number: UInt8, size: Int, baseType: BaseType)
+  ) throws(FITWriterError) {
+    if case .invalid = value { return }
+    let valueType: BaseType
+    let encodedSize: Int
+    let variableWidth: Bool
+    switch value {
+    case .enumType: (valueType, encodedSize, variableWidth) = (.enumType, 1, false)
+    case .sint8: (valueType, encodedSize, variableWidth) = (.sint8, 1, false)
+    case .uint8: (valueType, encodedSize, variableWidth) = (.uint8, 1, false)
+    case .sint16: (valueType, encodedSize, variableWidth) = (.sint16, 2, false)
+    case .uint16: (valueType, encodedSize, variableWidth) = (.uint16, 2, false)
+    case .sint32: (valueType, encodedSize, variableWidth) = (.sint32, 4, false)
+    case .uint32: (valueType, encodedSize, variableWidth) = (.uint32, 4, false)
+    case .float32: (valueType, encodedSize, variableWidth) = (.float32, 4, false)
+    case .float64: (valueType, encodedSize, variableWidth) = (.float64, 8, false)
+    case .uint8z: (valueType, encodedSize, variableWidth) = (.uint8z, 1, false)
+    case .uint16z: (valueType, encodedSize, variableWidth) = (.uint16z, 2, false)
+    case .uint32z: (valueType, encodedSize, variableWidth) = (.uint32z, 4, false)
+    case .byte: (valueType, encodedSize, variableWidth) = (.byte, 1, false)
+    case .sint64: (valueType, encodedSize, variableWidth) = (.sint64, 8, false)
+    case .uint64: (valueType, encodedSize, variableWidth) = (.uint64, 8, false)
+    case .uint64z: (valueType, encodedSize, variableWidth) = (.uint64z, 8, false)
+    case .string(let string):
+      (valueType, encodedSize, variableWidth) = (.string, string.utf8.count + 1, true)
+    case .bytes(let bytes):
+      (valueType, encodedSize, variableWidth) = (.byte, bytes.count, true)
+    case .invalid: return
+    }
+    guard valueType == field.baseType else {
+      throw FITWriterError.valueTypeMismatch(
+        fieldNumber: field.number, expected: field.baseType)
+    }
+    guard variableWidth ? encodedSize <= field.size : encodedSize == field.size else {
+      throw FITWriterError.valueSizeMismatch(
+        fieldNumber: field.number, expected: field.size, actual: encodedSize)
+    }
+  }
 
   private mutating func writeFieldValues(
     def: LocalTypeDef,
