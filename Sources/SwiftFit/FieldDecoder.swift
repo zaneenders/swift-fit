@@ -36,27 +36,51 @@ func decodeField(
   for index in 0..<count {
     let at = index &* elementSize
     switch baseType {
-    case .enumType: result.append(.enumType(UInt8(unsigned(at, byteCount: 1))))
-    case .sint8: result.append(.sint8(Int8(bitPattern: UInt8(unsigned(at, byteCount: 1)))))
-    case .uint8: result.append(.uint8(UInt8(unsigned(at, byteCount: 1))))
-    case .uint8z: result.append(.uint8z(UInt8(unsigned(at, byteCount: 1))))
-    case .byte: result.append(.byte(UInt8(unsigned(at, byteCount: 1))))
+    case .enumType:
+      let raw = UInt8(unsigned(at, byteCount: 1))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .enumType(raw))
+    case .sint8:
+      let raw = UInt8(unsigned(at, byteCount: 1))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .sint8(Int8(bitPattern: raw)))
+    case .uint8:
+      let raw = UInt8(unsigned(at, byteCount: 1))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint8(raw))
+    case .uint8z:
+      let raw = UInt8(unsigned(at, byteCount: 1))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint8z(raw))
+    case .byte:
+      let raw = UInt8(unsigned(at, byteCount: 1))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .byte(raw))
     case .sint16:
-      result.append(.sint16(Int16(bitPattern: UInt16(unsigned(at, byteCount: 2)))))
-    case .uint16: result.append(.uint16(UInt16(unsigned(at, byteCount: 2))))
-    case .uint16z: result.append(.uint16z(UInt16(unsigned(at, byteCount: 2))))
+      let raw = UInt16(unsigned(at, byteCount: 2))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .sint16(Int16(bitPattern: raw)))
+    case .uint16:
+      let raw = UInt16(unsigned(at, byteCount: 2))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint16(raw))
+    case .uint16z:
+      let raw = UInt16(unsigned(at, byteCount: 2))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint16z(raw))
     case .sint32:
-      result.append(.sint32(Int32(bitPattern: UInt32(unsigned(at, byteCount: 4)))))
-    case .uint32: result.append(.uint32(UInt32(unsigned(at, byteCount: 4))))
-    case .uint32z: result.append(.uint32z(UInt32(unsigned(at, byteCount: 4))))
+      let raw = UInt32(unsigned(at, byteCount: 4))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .sint32(Int32(bitPattern: raw)))
+    case .uint32:
+      let raw = UInt32(unsigned(at, byteCount: 4))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint32(raw))
+    case .uint32z:
+      let raw = UInt32(unsigned(at, byteCount: 4))
+      result.append(UInt64(raw) == baseType.invalidValue ? .invalid : .uint32z(raw))
     case .float32:
       let raw = UInt32(unsigned(at, byteCount: 4))
       result.append(raw == 0xFFFF_FFFF ? .invalid : .float32(Float(bitPattern: raw)))
     case .float64:
       let raw = unsigned(at, byteCount: 8)
       result.append(raw == 0xFFFF_FFFF_FFFF_FFFF ? .invalid : .float64(Double(bitPattern: raw)))
-    case .sint64: result.append(.sint64(Int64(bitPattern: unsigned(at, byteCount: 8))))
-    case .uint64: result.append(.uint64(unsigned(at, byteCount: 8)))
+    case .sint64:
+      let raw = unsigned(at, byteCount: 8)
+      result.append(raw == baseType.invalidValue ? .invalid : .sint64(Int64(bitPattern: raw)))
+    case .uint64:
+      let raw = unsigned(at, byteCount: 8)
+      result.append(raw == baseType.invalidValue ? .invalid : .uint64(raw))
     case .string, .invalid: result.append(.invalid)
     }
   }

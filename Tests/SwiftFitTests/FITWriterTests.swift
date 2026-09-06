@@ -89,9 +89,9 @@ import Testing
   @Test func roundTripUInt64() throws {
     var w = FITWriter()
     try w.define(globalMessageNumber: 0, fields: [(0, 8, .uint64)])
-    try w.write(localType: 0, values: [.uint64(18_446_744_073_709_551_615)])
+    try w.write(localType: 0, values: [.uint64(18_446_744_073_709_551_614)])
     let fit = try FITFile(data: w.finishData())
-    #expect(fit.messages[0].fields[0].values == [.uint64(18_446_744_073_709_551_615)])
+    #expect(fit.messages[0].fields[0].values == [.uint64(18_446_744_073_709_551_614)])
   }
 
   @Test func roundTripByte() throws {
@@ -191,9 +191,8 @@ import Testing
     let fit = try FITFile(data: w.finishData())
     #expect(fit.messages[0].fields.count == 2)
     #expect(fit.messages[0].fields[0].values == [.uint32(42)])
-    // 0xFFFF is the FIT invalid sentinel for uint16;
-    // the decoder preserves it as .uint16(65535) (only floats get .invalid)
-    #expect(fit.messages[0].fields[1].values == [.uint16(65535)])
+    // 0xFFFF is the FIT invalid sentinel for uint16.
+    #expect(fit.messages[0].fields[1].values == [.invalid])
   }
 
   @Test func realisticFileIdAndRecord() throws {
