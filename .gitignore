@@ -1,5 +1,6 @@
 activities/
 .build
+.swiftpm
 
 central_park_loop_1s.fit
 

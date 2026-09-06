@@ -50,6 +50,17 @@ import Testing
   }
 
   @Test(.disabled(if: FITRealFileTests.allFiles.isEmpty))
+  func crcValidationMatchesRealProducerFiles() throws {
+    let files = Self.sampleFiles(8)
+    for url in files {
+      var options = FITDecodeOptions()
+      options.validateHeaderCRC = true
+      options.validateFileCRC = true
+      _ = try FITFile(data: Data(contentsOf: url), options: options)
+    }
+  }
+
+  @Test(.disabled(if: FITRealFileTests.allFiles.isEmpty))
   func messageCountsAreReasonable() throws {
     let url = Self.sampleFiles(1)[0]
     let fit = try FITFile(data: try Data(contentsOf: url))

@@ -5,7 +5,7 @@ public enum FITActivityEncoder {
 
   public static func encode(_ summary: FITActivitySummary) throws(FITWriterError) -> [UInt8] {
     var writer = FITWriter()
-    writer.useCompressedTimestamps = true
+    writer.useCompressedTimestamps = false
 
     let fileIdLocal = try writer.define(
       globalMessageNumber: FITGlobalMessage.fileID,
