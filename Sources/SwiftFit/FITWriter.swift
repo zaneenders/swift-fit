@@ -28,6 +28,9 @@ public struct FITWriter: Sendable {
       number: UInt8, size: Int, developerDataIndex: UInt8, baseType: BaseType
     )] = []
   ) throws(FITWriterError) -> UInt8 {
+    guard developerFields.isEmpty || protocolVersion >> 4 >= 2 else {
+      throw FITWriterError.developerDataRequiresProtocol2
+    }
     guard nextLocalType <= 15 else { throw FITWriterError.tooManyLocalTypes }
     let local = nextLocalType
     nextLocalType &+= 1

@@ -165,6 +165,7 @@ import Testing
 
   @Test func developerFields() throws {
     var w = FITWriter()
+    w.protocolVersion = 0x20
     let description = try w.define(
       globalMessageNumber: FITGlobalMessage.developerDataDefinition,
       fields: [
@@ -187,6 +188,15 @@ import Testing
     #expect(fit.messages[1].fields[0].values == [.uint16(100)])
     #expect(fit.messages[1].fields[1].values == [.float32(1.5)])
     #expect(fit.messages[1].fields[1].developerDataIndex == 7)
+  }
+
+  @Test func developerFieldsRequireProtocol2() {
+    var writer = FITWriter()
+    #expect(throws: FITWriterError.developerDataRequiresProtocol2) {
+      try writer.define(
+        globalMessageNumber: 99,
+        developerFields: [(0, 4, 7, .float32)])
+    }
   }
 
   @Test func fewerValuesThanFieldsWritesInvalidSentinel() throws {

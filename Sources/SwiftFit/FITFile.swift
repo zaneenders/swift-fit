@@ -13,6 +13,7 @@ public enum FITError: Error, Equatable {
 public enum FITWriterError: Error, Equatable {
   case unknownLocalType(UInt8)
   case tooManyLocalTypes
+  case developerDataRequiresProtocol2
 }
 
 /// A decoded FIT file.
