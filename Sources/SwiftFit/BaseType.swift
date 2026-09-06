@@ -16,6 +16,7 @@ public enum BaseType: UInt8, Sendable {
   case byte = 0x0D
   case sint64 = 0x8E
   case uint64 = 0x8F
+  case uint64z = 0x90
   case invalid = 0xFF
 
   /// The size in bytes of a single element of this base type.
@@ -25,7 +26,7 @@ public enum BaseType: UInt8, Sendable {
     case .enumType, .sint8, .uint8, .string, .uint8z, .byte: return 1
     case .sint16, .uint16, .uint16z: return 2
     case .sint32, .uint32, .float32, .uint32z: return 4
-    case .float64, .sint64, .uint64: return 8
+    case .float64, .sint64, .uint64, .uint64z: return 8
     case .invalid: return 0
     }
   }
@@ -33,13 +34,18 @@ public enum BaseType: UInt8, Sendable {
   /// The "invalid" sentinel value for this base type.
   public var invalidValue: UInt64 {
     switch self {
-    case .enumType, .sint8, .uint8, .byte: return 0xFF
-    case .sint16, .uint16: return 0xFFFF
-    case .sint32, .uint32: return 0xFFFF_FFFF
-    case .sint64, .uint64: return 0xFFFF_FFFF_FFFF_FFFF
+    case .enumType, .uint8, .byte: return 0xFF
+    case .sint8: return 0x7F
+    case .uint16: return 0xFFFF
+    case .sint16: return 0x7FFF
+    case .uint32: return 0xFFFF_FFFF
+    case .sint32: return 0x7FFF_FFFF
+    case .uint64: return 0xFFFF_FFFF_FFFF_FFFF
+    case .sint64: return 0x7FFF_FFFF_FFFF_FFFF
     case .uint8z: return 0
     case .uint16z: return 0
     case .uint32z: return 0
+    case .uint64z: return 0
     case .string: return 0
     case .float32: return 0xFFFF_FFFF
     case .float64: return 0xFFFF_FFFF_FFFF_FFFF
@@ -53,6 +59,7 @@ struct FieldDefinition: Sendable {
   let fieldDefinitionNumber: UInt8
   let size: UInt8
   let baseType: BaseType
+  let developerDataIndex: UInt8?
 }
 
 /// A definition message: maps a local message type to a global message number

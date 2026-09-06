@@ -41,6 +41,20 @@ public struct Field: Sendable {
   public let fieldDefinitionNumber: UInt8
   public let baseType: BaseType
   public let values: [Value]
+  /// Identifies the developer that owns this field. `nil` for native fields.
+  public let developerDataIndex: UInt8?
+
+  public init(
+    fieldDefinitionNumber: UInt8,
+    baseType: BaseType,
+    values: [Value],
+    developerDataIndex: UInt8? = nil
+  ) {
+    self.fieldDefinitionNumber = fieldDefinitionNumber
+    self.baseType = baseType
+    self.values = values
+    self.developerDataIndex = developerDataIndex
+  }
 }
 
 /// Typed value of a FIT field element.
@@ -62,5 +76,6 @@ public enum Value: Sendable, Equatable {
   case bytes([UInt8])
   case sint64(Int64)
   case uint64(UInt64)
+  case uint64z(UInt64)
   case invalid
 }

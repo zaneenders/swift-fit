@@ -10,7 +10,7 @@ func decodeField(
 ) -> [Value] {
   guard size > 0, baseType != .invalid else { return [.invalid] }
   if baseType == .string {
-    return [.string(decodeFITString(bytes, from: offset, size: size))]
+    return decodeFITStrings(bytes, from: offset, size: size).map(Value.string)
   }
   let elementSize = baseType.size
   guard elementSize > 0 else { return [.invalid] }
@@ -35,6 +35,11 @@ func decodeField(
   result.reserveCapacity(count)
   for index in 0..<count {
     let at = index &* elementSize
+    let raw = unsigned(at, byteCount: elementSize)
+    if raw == baseType.invalidValue {
+      result.append(.invalid)
+      continue
+    }
     switch baseType {
     case .enumType: result.append(.enumType(UInt8(unsigned(at, byteCount: 1))))
     case .sint8: result.append(.sint8(Int8(bitPattern: UInt8(unsigned(at, byteCount: 1)))))
@@ -50,34 +55,35 @@ func decodeField(
     case .uint32: result.append(.uint32(UInt32(unsigned(at, byteCount: 4))))
     case .uint32z: result.append(.uint32z(UInt32(unsigned(at, byteCount: 4))))
     case .float32:
-      let raw = UInt32(unsigned(at, byteCount: 4))
-      result.append(raw == 0xFFFF_FFFF ? .invalid : .float32(Float(bitPattern: raw)))
+      result.append(.float32(Float(bitPattern: UInt32(raw))))
     case .float64:
-      let raw = unsigned(at, byteCount: 8)
-      result.append(raw == 0xFFFF_FFFF_FFFF_FFFF ? .invalid : .float64(Double(bitPattern: raw)))
+      result.append(.float64(Double(bitPattern: raw)))
     case .sint64: result.append(.sint64(Int64(bitPattern: unsigned(at, byteCount: 8))))
     case .uint64: result.append(.uint64(unsigned(at, byteCount: 8)))
+    case .uint64z: result.append(.uint64z(unsigned(at, byteCount: 8)))
     case .string, .invalid: result.append(.invalid)
     }
   }
   return result
 }
 
-/// Decode a null-terminated FIT string from a buffer slice.
+/// Decode one or more null-separated FIT strings from a buffer slice.
 ///
 /// The caller guarantees `offset + size` is within bounds.
 @inline(__always)
-func decodeFITString(
+func decodeFITStrings(
   _ bytes: borrowing [UInt8], from offset: Int, size: Int
-) -> String {
-  var end = offset &+ size
-  while end > offset, bytes[end &- 1] == 0 { end &-= 1 }
-  guard end > offset else { return "" }
-  var cleaned: [UInt8] = []
-  cleaned.reserveCapacity(end &- offset)
-  for index in offset..<end {
-    let byte = bytes[index]
-    if byte != 0 { cleaned.append(byte) }
+) -> [String] {
+  let limit = offset &+ size
+  var strings: [String] = []
+  var start = offset
+  for index in offset..<limit where bytes[index] == 0 {
+    strings.append(String(decoding: bytes[start..<index], as: UTF8.self))
+    start = index &+ 1
   }
-  return String(decoding: cleaned, as: UTF8.self)
+  if start < limit {
+    strings.append(String(decoding: bytes[start..<limit], as: UTF8.self))
+  }
+  while strings.last == "" { strings.removeLast() }
+  return strings
 }

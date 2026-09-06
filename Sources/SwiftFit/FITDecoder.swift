@@ -23,6 +23,8 @@ struct FITDecoder: ~Copyable {
 
   /// Active definition messages keyed by local message type (0–15).
   var definitions: [UInt8: DefinitionMessage] = [:]
+  /// Developer field types declared by field_description messages already read.
+  var developerFieldBaseTypes: [DeveloperFieldKey: BaseType] = [:]
   /// Last full timestamp used to expand compressed timestamp headers.
   var lastTimestamp: UInt32 = 0
 
@@ -143,6 +145,7 @@ struct FITDecoder: ~Copyable {
         let message = try readDataMessage(
           def,
           compressedTimestamp: compressedTimestamp)
+        updateDeveloperFieldBaseType(from: message)
         lastTimestamp = compressedTimestamp
         messages.append(message)
       } else {
@@ -163,6 +166,7 @@ struct FITDecoder: ~Copyable {
           }
           let message = try readDataMessage(def)
           updateLastTimestamp(from: message)
+          updateDeveloperFieldBaseType(from: message)
           messages.append(message)
         }
       }
@@ -195,7 +199,7 @@ struct FITDecoder: ~Copyable {
       fields.append(
         FieldDefinition(
           fieldDefinitionNumber: num,
-          size: size, baseType: baseType))
+          size: size, baseType: baseType, developerDataIndex: nil))
     }
     var devFields: [FieldDefinition] = []
     if hasDevData {
@@ -203,12 +207,15 @@ struct FITDecoder: ~Copyable {
       for _ in 0..<nDev {
         let num = try _readU8Advance()
         let size = try _readU8Advance()
-        let base = try _readU8Advance()
-        let baseType = try resolveBaseType(base)
+        let developerDataIndex = try _readU8Advance()
+        let key = DeveloperFieldKey(
+          developerDataIndex: developerDataIndex,
+          fieldDefinitionNumber: num)
+        let baseType = developerFieldBaseTypes[key] ?? .byte
         devFields.append(
           FieldDefinition(
             fieldDefinitionNumber: num,
-            size: size, baseType: baseType))
+            size: size, baseType: baseType, developerDataIndex: developerDataIndex))
       }
     }
     definitions[localMesgType] = DefinitionMessage(
@@ -237,6 +244,23 @@ struct FITDecoder: ~Copyable {
     lastTimestamp = timestamp
   }
 
+  private mutating func updateDeveloperFieldBaseType(from message: Message) {
+    guard message.globalMessageNumber == FITGlobalMessage.developerDataDefinition,
+      let developerDataIndex = message.uint8Field(
+        number: FITDeveloperDataDefinitionField.developerDataIndex),
+      let fieldDefinitionNumber = message.uint8Field(
+        number: FITDeveloperDataDefinitionField.fieldDefinitionNumber),
+      let rawBaseType = message.uint8Field(
+        number: FITDeveloperDataDefinitionField.fitBaseTypeId),
+      let baseType = BaseType(rawValue: rawBaseType)
+    else { return }
+    developerFieldBaseTypes[
+      DeveloperFieldKey(
+        developerDataIndex: developerDataIndex,
+        fieldDefinitionNumber: fieldDefinitionNumber)
+    ] = baseType
+  }
+
   // MARK: Data
 
   /// Read a data message. Field payloads are decoded by borrowing directly
@@ -254,7 +278,8 @@ struct FITDecoder: ~Copyable {
           Field(
             fieldDefinitionNumber: fd.fieldDefinitionNumber,
             baseType: fd.baseType,
-            values: [.uint32(compressedTimestamp)]))
+            values: [.uint32(compressedTimestamp)],
+            developerDataIndex: nil))
         continue
       }
       let size = Int(fd.size)
@@ -266,7 +291,8 @@ struct FITDecoder: ~Copyable {
       fields.append(
         Field(
           fieldDefinitionNumber: fd.fieldDefinitionNumber,
-          baseType: fd.baseType, values: values))
+          baseType: fd.baseType, values: values,
+          developerDataIndex: nil))
     }
     // Developer field values are present whenever the active definition
     // declares dev fields, regardless of the data record's dev flag
@@ -281,7 +307,8 @@ struct FITDecoder: ~Copyable {
       fields.append(
         Field(
           fieldDefinitionNumber: fd.fieldDefinitionNumber,
-          baseType: fd.baseType, values: values))
+          baseType: fd.baseType, values: values,
+          developerDataIndex: fd.developerDataIndex))
     }
     return Message(
       globalMessageNumber: def.globalMessageNumber,

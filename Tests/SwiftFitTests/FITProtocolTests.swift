@@ -242,7 +242,7 @@ import Testing
       values: [
         .uint8(1),
         .uint8(42),
-        .bytes([0x01, 0x02, 0x03, 0x04]),
+        .bytes([0x01, 0xFF, 0x03, 0x04]),
       ])
 
     let developerDefinitionLocal = try writer.define(
@@ -267,7 +267,7 @@ import Testing
     let fit = try FITFile(data: writer.finishData())
     let developerID = try #require(fit.developerDataIDs[1])
     #expect(developerID.developerId == 42)
-    #expect(developerID.applicationId == [0x01, 0x02, 0x03, 0x04])
+    #expect(developerID.applicationId == [0x01, 0xFF, 0x03, 0x04])
 
     let key = DeveloperFieldKey(developerDataIndex: 1, fieldDefinitionNumber: 0)
     let fieldDefinition = try #require(fit.developerFieldDefinitions[key])
