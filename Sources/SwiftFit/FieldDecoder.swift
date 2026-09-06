@@ -35,6 +35,11 @@ func decodeField(
   result.reserveCapacity(count)
   for index in 0..<count {
     let at = index &* elementSize
+    let raw = unsigned(at, byteCount: elementSize)
+    if raw == baseType.invalidValue {
+      result.append(.invalid)
+      continue
+    }
     switch baseType {
     case .enumType: result.append(.enumType(UInt8(unsigned(at, byteCount: 1))))
     case .sint8: result.append(.sint8(Int8(bitPattern: UInt8(unsigned(at, byteCount: 1)))))
@@ -50,11 +55,9 @@ func decodeField(
     case .uint32: result.append(.uint32(UInt32(unsigned(at, byteCount: 4))))
     case .uint32z: result.append(.uint32z(UInt32(unsigned(at, byteCount: 4))))
     case .float32:
-      let raw = UInt32(unsigned(at, byteCount: 4))
-      result.append(raw == 0xFFFF_FFFF ? .invalid : .float32(Float(bitPattern: raw)))
+      result.append(.float32(Float(bitPattern: UInt32(raw))))
     case .float64:
-      let raw = unsigned(at, byteCount: 8)
-      result.append(raw == 0xFFFF_FFFF_FFFF_FFFF ? .invalid : .float64(Double(bitPattern: raw)))
+      result.append(.float64(Double(bitPattern: raw)))
     case .sint64: result.append(.sint64(Int64(bitPattern: unsigned(at, byteCount: 8))))
     case .uint64: result.append(.uint64(unsigned(at, byteCount: 8)))
     case .string, .invalid: result.append(.invalid)
