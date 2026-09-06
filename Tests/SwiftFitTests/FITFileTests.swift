@@ -95,6 +95,24 @@ enum FITFixture {
     #expect(s == "hello")
   }
 
+  @Test func parsesNullSeparatedStringArray() throws {
+    let data = FITFixture.build(fields: [
+      (3, 12, BaseType.string.rawValue, Data([46, 70, 73, 84, 0, 71, 97, 114, 109, 105, 110, 0]))
+    ])
+    let fit = try FITFile(data: data)
+    #expect(fit.messages[0].fields[0].values == [.string(".FIT"), .string("Garmin")])
+  }
+
+  @Test func stringArrayPreservesLeadingEmptyValuesAndTrimsTrailingTerminators() throws {
+    let data = FITFixture.build(fields: [
+      (3, 12, BaseType.string.rawValue, Data([0, 0, 0, 0, 46, 70, 73, 84, 0, 0, 0, 0]))
+    ])
+    let fit = try FITFile(data: data)
+    #expect(fit.messages[0].fields[0].values == [
+      .string(""), .string(""), .string(""), .string(""), .string(".FIT"),
+    ])
+  }
+
   @Test func invalidSignatureRejected() throws {
     var bad = FITFixture.build(fields: [])
     bad[8] = 0x00  // corrupt ".FIT" (signature starts at byte 8)
