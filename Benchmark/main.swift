@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 import SwiftFit
 
@@ -57,12 +58,12 @@ for round in 1...iterations {
     totalElapsed += elapsed
 
     print(
-      "  round \(round)/\(iterations):  \(unsafe String(format: "%7.1f", mbps)) MB/s   \(messages) msgs   \(errors) errs   \(unsafe String(format: "%.2f", elapsed))s"
+      "  round \(round)/\(iterations):  \(mbps.formatted(.number.precision(.fractionLength(1)))) MB/s   \(messages) msgs   \(errors) errs   \(elapsed.formatted(.number.precision(.fractionLength(2))))s"
     )
 }
 
 let avgMbps = Double(totalBytes) / 1_000_000.0 / (totalElapsed / Double(iterations))
 print()
-print("  best:  \(unsafe String(format: "%.1f", bestMbps)) MB/s")
-print("  worst: \(unsafe String(format: "%.1f", worstMbps)) MB/s")
-print("  avg:   \(unsafe String(format: "%.1f", avgMbps)) MB/s")
+print("  best:  \(bestMbps.formatted(.number.precision(.fractionLength(1)))) MB/s")
+print("  worst: \(worstMbps.formatted(.number.precision(.fractionLength(1)))) MB/s")
+print("  avg:   \(avgMbps.formatted(.number.precision(.fractionLength(1)))) MB/s")
