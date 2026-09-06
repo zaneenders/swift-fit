@@ -10,7 +10,7 @@ func decodeField(
 ) -> [Value] {
   guard size > 0, baseType != .invalid else { return [.invalid] }
   if baseType == .string {
-    return [.string(decodeFITString(bytes, from: offset, size: size))]
+    return decodeFITStrings(bytes, from: offset, size: size).map(Value.string)
   }
   let elementSize = baseType.size
   guard elementSize > 0 else { return [.invalid] }
@@ -63,16 +63,23 @@ func decodeField(
   return result
 }
 
-/// Decode a null-terminated FIT string from a buffer slice.
+/// Decode one or more null-separated FIT strings from a buffer slice.
 ///
 /// The caller guarantees `offset + size` is within bounds.
 @inline(__always)
-func decodeFITString(
+func decodeFITStrings(
   _ bytes: borrowing [UInt8], from offset: Int, size: Int
-) -> String {
-  var end = offset
+) -> [String] {
   let limit = offset &+ size
-  while end < limit, bytes[end] != 0 { end &+= 1 }
-  guard end > offset else { return "" }
-  return String(decoding: bytes[offset..<end], as: UTF8.self)
+  var strings: [String] = []
+  var start = offset
+  for index in offset..<limit where bytes[index] == 0 {
+    strings.append(String(decoding: bytes[start..<index], as: UTF8.self))
+    start = index &+ 1
+  }
+  if start < limit {
+    strings.append(String(decoding: bytes[start..<limit], as: UTF8.self))
+  }
+  while strings.last == "" { strings.removeLast() }
+  return strings
 }
