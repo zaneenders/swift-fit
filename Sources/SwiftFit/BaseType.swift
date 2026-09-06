@@ -33,10 +33,14 @@ public enum BaseType: UInt8, Sendable {
   /// The "invalid" sentinel value for this base type.
   public var invalidValue: UInt64 {
     switch self {
-    case .enumType, .sint8, .uint8, .byte: return 0xFF
-    case .sint16, .uint16: return 0xFFFF
-    case .sint32, .uint32: return 0xFFFF_FFFF
-    case .sint64, .uint64: return 0xFFFF_FFFF_FFFF_FFFF
+    case .enumType, .uint8, .byte: return 0xFF
+    case .sint8: return 0x7F
+    case .uint16: return 0xFFFF
+    case .sint16: return 0x7FFF
+    case .uint32: return 0xFFFF_FFFF
+    case .sint32: return 0x7FFF_FFFF
+    case .uint64: return 0xFFFF_FFFF_FFFF_FFFF
+    case .sint64: return 0x7FFF_FFFF_FFFF_FFFF
     case .uint8z: return 0
     case .uint16z: return 0
     case .uint32z: return 0
@@ -53,6 +57,7 @@ struct FieldDefinition: Sendable {
   let fieldDefinitionNumber: UInt8
   let size: UInt8
   let baseType: BaseType
+  let developerDataIndex: UInt8?
 }
 
 /// A definition message: maps a local message type to a global message number
