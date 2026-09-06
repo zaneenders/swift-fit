@@ -165,17 +165,28 @@ import Testing
 
   @Test func developerFields() throws {
     var w = FITWriter()
-    try w.define(
+    let description = try w.define(
+      globalMessageNumber: FITGlobalMessage.developerDataDefinition,
+      fields: [
+        (FITDeveloperDataDefinitionField.developerDataIndex, 1, .uint8),
+        (FITDeveloperDataDefinitionField.fieldDefinitionNumber, 1, .uint8),
+        (FITDeveloperDataDefinitionField.fitBaseTypeId, 1, .uint8),
+      ])
+    try w.write(
+      localType: description,
+      values: [.uint8(7), .uint8(0), .uint8(BaseType.float32.rawValue)])
+    let message = try w.define(
       globalMessageNumber: 99,
       fields: [(0, 2, .uint16)],
-      developerFields: [(0, 4, .float32)]
+      developerFields: [(0, 4, 7, .float32)]
     )
-    try w.write(localType: 0, values: [.uint16(100), .float32(1.5)])
+    try w.write(localType: message, values: [.uint16(100), .float32(1.5)])
     let fit = try FITFile(data: w.finishData())
-    #expect(fit.messages.count == 1)
-    #expect(fit.messages[0].fields.count == 2)
-    #expect(fit.messages[0].fields[0].values == [.uint16(100)])
-    #expect(fit.messages[0].fields[1].values == [.float32(1.5)])
+    #expect(fit.messages.count == 2)
+    #expect(fit.messages[1].fields.count == 2)
+    #expect(fit.messages[1].fields[0].values == [.uint16(100)])
+    #expect(fit.messages[1].fields[1].values == [.float32(1.5)])
+    #expect(fit.messages[1].fields[1].developerDataIndex == 7)
   }
 
   @Test func fewerValuesThanFieldsWritesInvalidSentinel() throws {
