@@ -70,14 +70,9 @@ func decodeField(
 func decodeFITString(
   _ bytes: borrowing [UInt8], from offset: Int, size: Int
 ) -> String {
-  var end = offset &+ size
-  while end > offset, bytes[end &- 1] == 0 { end &-= 1 }
+  var end = offset
+  let limit = offset &+ size
+  while end < limit, bytes[end] != 0 { end &+= 1 }
   guard end > offset else { return "" }
-  var cleaned: [UInt8] = []
-  cleaned.reserveCapacity(end &- offset)
-  for index in offset..<end {
-    let byte = bytes[index]
-    if byte != 0 { cleaned.append(byte) }
-  }
-  return String(decoding: cleaned, as: UTF8.self)
+  return String(decoding: bytes[offset..<end], as: UTF8.self)
 }

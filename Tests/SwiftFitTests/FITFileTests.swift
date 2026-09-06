@@ -95,6 +95,14 @@ enum FITFixture {
     #expect(s == "hello")
   }
 
+  @Test func stringStopsAtFirstNullTerminator() throws {
+    let data = FITFixture.build(fields: [
+      (3, 11, BaseType.string.rawValue, Data([104, 105, 0, 105, 103, 110, 111, 114, 101, 100, 0]))
+    ])
+    let fit = try FITFile(data: data)
+    #expect(fit.messages[0].fields[0].values == [.string("hi")])
+  }
+
   @Test func invalidSignatureRejected() throws {
     var bad = FITFixture.build(fields: [])
     bad[8] = 0x00  // corrupt ".FIT" (signature starts at byte 8)
