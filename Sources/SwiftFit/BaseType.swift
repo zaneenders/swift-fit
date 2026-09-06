@@ -53,6 +53,7 @@ struct FieldDefinition: Sendable {
   let fieldDefinitionNumber: UInt8
   let size: UInt8
   let baseType: BaseType
+  let developerDataIndex: UInt8?
 }
 
 /// A definition message: maps a local message type to a global message number

@@ -24,7 +24,9 @@ public struct FITWriter: Sendable {
   public mutating func define(
     globalMessageNumber: UInt16,
     fields: [(number: UInt8, size: Int, baseType: BaseType)] = [],
-    developerFields: [(number: UInt8, size: Int, baseType: BaseType)] = []
+    developerFields: [(
+      number: UInt8, size: Int, developerDataIndex: UInt8, baseType: BaseType
+    )] = []
   ) throws(FITWriterError) -> UInt8 {
     guard nextLocalType <= 15 else { throw FITWriterError.tooManyLocalTypes }
     let local = nextLocalType
@@ -46,10 +48,10 @@ public struct FITWriter: Sendable {
 
     if hasDev {
       data.append(UInt8(developerFields.count))
-      for (num, size, baseType) in developerFields {
+      for (num, size, developerDataIndex, _) in developerFields {
         data.append(num)
         data.append(UInt8(size))
-        data.append(baseType.rawValue)
+        data.append(developerDataIndex)
       }
     }
 
@@ -226,7 +228,9 @@ private struct LocalTypeDef: Sendable {
   let local: UInt8
   let globalMessageNumber: UInt16
   let fields: [(number: UInt8, size: Int, baseType: BaseType)]
-  let devFields: [(number: UInt8, size: Int, baseType: BaseType)]
+  let devFields: [(
+    number: UInt8, size: Int, developerDataIndex: UInt8, baseType: BaseType
+  )]
 }
 
 // MARK: - Foundation convenience
