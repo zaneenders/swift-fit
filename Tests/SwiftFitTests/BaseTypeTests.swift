@@ -20,6 +20,7 @@ import Testing
     (.float64, 8),
     (.sint64, 8),
     (.uint64, 8),
+    (.uint64z, 8),
     (.invalid, 0),
   ])
   func elementSizes(type: BaseType, expected: Int) {
@@ -28,15 +29,16 @@ import Testing
 
   @Test(arguments: [
     (BaseType.enumType, UInt64(0xFF)),
-    (.sint8, 0xFF),
+    (.sint8, 0x7F),
     (.uint8, 0xFF),
     (.byte, 0xFF),
-    (.sint16, 0xFFFF),
+    (.sint16, 0x7FFF),
     (.uint16, 0xFFFF),
-    (.sint32, 0xFFFF_FFFF),
+    (.sint32, 0x7FFF_FFFF),
     (.uint32, 0xFFFF_FFFF),
-    (.sint64, 0xFFFF_FFFF_FFFF_FFFF),
+    (.sint64, 0x7FFF_FFFF_FFFF_FFFF),
     (.uint64, 0xFFFF_FFFF_FFFF_FFFF),
+    (.uint64z, 0),
     (.uint8z, 0),
     (.uint16z, 0),
     (.uint32z, 0),

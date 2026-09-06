@@ -13,6 +13,12 @@ public enum FITError: Error, Equatable {
 public enum FITWriterError: Error, Equatable {
   case unknownLocalType(UInt8)
   case tooManyLocalTypes
+  case tooManyFields(Int)
+  case invalidFieldSize(Int)
+  case tooManyValues(expected: Int, actual: Int)
+  case valueTypeMismatch(fieldNumber: UInt8, expected: BaseType)
+  case valueSizeMismatch(fieldNumber: UInt8, expected: Int, actual: Int)
+  case developerDataRequiresProtocol2
 }
 
 /// A decoded FIT file.

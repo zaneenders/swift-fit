@@ -102,6 +102,7 @@ extension Message {
       switch value {
       case .byte(let byte): byte
       case .uint8(let byte): byte
+      case .invalid: 0xFF
       default: nil
       }
     }

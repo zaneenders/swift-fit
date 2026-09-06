@@ -24,9 +24,31 @@ public struct FITWriter: Sendable {
   public mutating func define(
     globalMessageNumber: UInt16,
     fields: [(number: UInt8, size: Int, baseType: BaseType)] = [],
-    developerFields: [(number: UInt8, size: Int, baseType: BaseType)] = []
+    developerFields: [(
+      number: UInt8, size: Int, developerDataIndex: UInt8, baseType: BaseType
+    )] = []
   ) throws(FITWriterError) -> UInt8 {
+    guard developerFields.isEmpty || protocolVersion >> 4 >= 2 else {
+      throw FITWriterError.developerDataRequiresProtocol2
+    }
     guard nextLocalType <= 15 else { throw FITWriterError.tooManyLocalTypes }
+    guard fields.count <= 255 else { throw FITWriterError.tooManyFields(fields.count) }
+    guard developerFields.count <= 255 else {
+      throw FITWriterError.tooManyFields(developerFields.count)
+    }
+    for field in fields {
+      guard (1...255).contains(field.size) else {
+        throw FITWriterError.invalidFieldSize(field.size)
+      }
+      guard field.baseType == .string || field.baseType.size > 0,
+        field.baseType == .string || field.size.isMultiple(of: field.baseType.size)
+      else { throw FITWriterError.invalidFieldSize(field.size) }
+    }
+    for field in developerFields {
+      guard (1...255).contains(field.size) else {
+        throw FITWriterError.invalidFieldSize(field.size)
+      }
+    }
     let local = nextLocalType
     nextLocalType &+= 1
 
@@ -46,10 +68,10 @@ public struct FITWriter: Sendable {
 
     if hasDev {
       data.append(UInt8(developerFields.count))
-      for (num, size, baseType) in developerFields {
+      for (num, size, developerDataIndex, _) in developerFields {
         data.append(num)
         data.append(UInt8(size))
-        data.append(baseType.rawValue)
+        data.append(developerDataIndex)
       }
     }
 
@@ -70,6 +92,15 @@ public struct FITWriter: Sendable {
   public mutating func write(localType: UInt8, values: [Value]) throws(FITWriterError) {
     guard let def = definitions.first(where: { $0.local == localType }) else {
       throw FITWriterError.unknownLocalType(localType)
+    }
+    let allFields = def.fields + def.devFields.map {
+      (number: $0.number, size: $0.size, baseType: $0.baseType)
+    }
+    guard values.count <= allFields.count else {
+      throw FITWriterError.tooManyValues(expected: allFields.count, actual: values.count)
+    }
+    for (value, field) in zip(values, allFields) {
+      try validate(value: value, for: field)
     }
 
     if useCompressedTimestamps,
@@ -140,6 +171,47 @@ public struct FITWriter: Sendable {
 
   // MARK: - Internal helpers
 
+  private func validate(
+    value: Value,
+    for field: (number: UInt8, size: Int, baseType: BaseType)
+  ) throws(FITWriterError) {
+    if case .invalid = value { return }
+    let valueType: BaseType
+    let encodedSize: Int
+    let variableWidth: Bool
+    switch value {
+    case .enumType: (valueType, encodedSize, variableWidth) = (.enumType, 1, false)
+    case .sint8: (valueType, encodedSize, variableWidth) = (.sint8, 1, false)
+    case .uint8: (valueType, encodedSize, variableWidth) = (.uint8, 1, false)
+    case .sint16: (valueType, encodedSize, variableWidth) = (.sint16, 2, false)
+    case .uint16: (valueType, encodedSize, variableWidth) = (.uint16, 2, false)
+    case .sint32: (valueType, encodedSize, variableWidth) = (.sint32, 4, false)
+    case .uint32: (valueType, encodedSize, variableWidth) = (.uint32, 4, false)
+    case .float32: (valueType, encodedSize, variableWidth) = (.float32, 4, false)
+    case .float64: (valueType, encodedSize, variableWidth) = (.float64, 8, false)
+    case .uint8z: (valueType, encodedSize, variableWidth) = (.uint8z, 1, false)
+    case .uint16z: (valueType, encodedSize, variableWidth) = (.uint16z, 2, false)
+    case .uint32z: (valueType, encodedSize, variableWidth) = (.uint32z, 4, false)
+    case .byte: (valueType, encodedSize, variableWidth) = (.byte, 1, false)
+    case .sint64: (valueType, encodedSize, variableWidth) = (.sint64, 8, false)
+    case .uint64: (valueType, encodedSize, variableWidth) = (.uint64, 8, false)
+    case .uint64z: (valueType, encodedSize, variableWidth) = (.uint64z, 8, false)
+    case .string(let string):
+      (valueType, encodedSize, variableWidth) = (.string, string.utf8.count + 1, true)
+    case .bytes(let bytes):
+      (valueType, encodedSize, variableWidth) = (.byte, bytes.count, true)
+    case .invalid: return
+    }
+    guard valueType == field.baseType else {
+      throw FITWriterError.valueTypeMismatch(
+        fieldNumber: field.number, expected: field.baseType)
+    }
+    guard variableWidth ? encodedSize <= field.size : encodedSize == field.size else {
+      throw FITWriterError.valueSizeMismatch(
+        fieldNumber: field.number, expected: field.size, actual: encodedSize)
+    }
+  }
+
   private mutating func writeFieldValues(
     def: LocalTypeDef,
     values: [Value],
@@ -152,12 +224,12 @@ public struct FITWriter: Sendable {
         continue
       }
       let value = valueIndex < values.count ? values[valueIndex] : .invalid
-      encodeValue(value, size: field.size)
+      encodeValue(value, size: field.size, baseType: field.baseType)
       valueIndex &+= 1
     }
     for field in def.devFields {
       let value = valueIndex < values.count ? values[valueIndex] : .invalid
-      encodeValue(value, size: field.size)
+      encodeValue(value, size: field.size, baseType: field.baseType)
       valueIndex &+= 1
     }
   }
@@ -189,7 +261,7 @@ public struct FITWriter: Sendable {
     data.append(UInt8((value >> 56) & 0xFF))
   }
 
-  private mutating func encodeValue(_ value: Value, size: Int) {
+  private mutating func encodeValue(_ value: Value, size: Int, baseType: BaseType) {
     switch value {
     case .enumType(let v): data.append(v)
     case .uint8(let v): data.append(v)
@@ -209,6 +281,7 @@ public struct FITWriter: Sendable {
     case .float32(let v): appendUInt32LE(v.bitPattern)
     case .float64(let v): appendUInt64LE(v.bitPattern)
     case .uint64(let v): appendUInt64LE(v)
+    case .uint64z(let v): appendUInt64LE(v)
     case .sint64(let v): appendUInt64LE(UInt64(bitPattern: v))
     case .string(let s):
       var strData = [UInt8](s.utf8)
@@ -216,7 +289,11 @@ public struct FITWriter: Sendable {
       while strData.count < size { strData.append(0) }
       data.append(contentsOf: strData.prefix(size))
     case .invalid:
-      for _ in 0..<size { data.append(0xFF) }
+      let elementSize = max(baseType.size, 1)
+      for index in 0..<size {
+        let shift = UInt64((index % elementSize) * 8)
+        data.append(UInt8(truncatingIfNeeded: baseType.invalidValue >> shift))
+      }
     }
   }
 }
@@ -226,7 +303,9 @@ private struct LocalTypeDef: Sendable {
   let local: UInt8
   let globalMessageNumber: UInt16
   let fields: [(number: UInt8, size: Int, baseType: BaseType)]
-  let devFields: [(number: UInt8, size: Int, baseType: BaseType)]
+  let devFields: [(
+    number: UInt8, size: Int, developerDataIndex: UInt8, baseType: BaseType
+  )]
 }
 
 // MARK: - Foundation convenience

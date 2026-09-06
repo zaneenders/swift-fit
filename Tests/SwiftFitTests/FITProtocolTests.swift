@@ -138,6 +138,40 @@ import Testing
     }
   }
 
+  @Test func writerRejectsValueWithWrongBaseType() throws {
+    var writer = FITWriter()
+    let local = try writer.define(
+      globalMessageNumber: 0,
+      fields: [(7, 4, .uint32)])
+    #expect(throws: FITWriterError.valueTypeMismatch(fieldNumber: 7, expected: .uint32)) {
+      try writer.write(localType: local, values: [.uint8(1)])
+    }
+  }
+
+  @Test func writerRejectsScalarWithWrongEncodedSize() throws {
+    var writer = FITWriter()
+    let local = try writer.define(
+      globalMessageNumber: 0,
+      fields: [(7, 8, .uint32)])
+    #expect(throws: FITWriterError.valueSizeMismatch(
+      fieldNumber: 7, expected: 8, actual: 4
+    )) {
+      try writer.write(localType: local, values: [.uint32(1)])
+    }
+  }
+
+  @Test func writerRejectsOversizedString() throws {
+    var writer = FITWriter()
+    let local = try writer.define(
+      globalMessageNumber: 0,
+      fields: [(7, 4, .string)])
+    #expect(throws: FITWriterError.valueSizeMismatch(
+      fieldNumber: 7, expected: 4, actual: 5
+    )) {
+      try writer.write(localType: local, values: [.string("test")])
+    }
+  }
+
   @Test func writerRejectsTooManyLocalTypes() throws {
     var writer = FITWriter()
     for index in 0..<16 {
@@ -208,7 +242,7 @@ import Testing
       values: [
         .uint8(1),
         .uint8(42),
-        .bytes([0x01, 0x02, 0x03, 0x04]),
+        .bytes([0x01, 0xFF, 0x03, 0x04]),
       ])
 
     let developerDefinitionLocal = try writer.define(
@@ -233,7 +267,7 @@ import Testing
     let fit = try FITFile(data: writer.finishData())
     let developerID = try #require(fit.developerDataIDs[1])
     #expect(developerID.developerId == 42)
-    #expect(developerID.applicationId == [0x01, 0x02, 0x03, 0x04])
+    #expect(developerID.applicationId == [0x01, 0xFF, 0x03, 0x04])
 
     let key = DeveloperFieldKey(developerDataIndex: 1, fieldDefinitionNumber: 0)
     let fieldDefinition = try #require(fit.developerFieldDefinitions[key])
